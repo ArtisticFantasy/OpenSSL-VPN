@@ -1,0 +1,9 @@
+certs/
+openssl/
+tools/
+build/
+
+ca_file/*.srl
+
+*.zip
+*.tar.gz
