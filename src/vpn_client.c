@@ -3,6 +3,9 @@
 #define SERVER_IP "127.0.0.1"
 
 int main() {
+
+    setup_signal_handler();
+
     int sock;
     struct sockaddr_in server_addr;
     SSL_CTX *ctx;
@@ -40,14 +43,25 @@ int main() {
         SSL_write(ssl, "Hello, SSL VPN server!", strlen("Hello, SSL VPN server!"));
     }
 
-    char buffer[1024] = {0};
-    int bytes = SSL_read(ssl, buffer, sizeof(buffer));
+    char buf[1000];
+    int bytes = SSL_read(ssl, buf, 500);
     if (bytes > 0) {
-        buffer[bytes] = '\0';
-        printf("Received message from server: %s\n", buffer);
+        buf[bytes] = 0;
+        char *slash = strchr(buf, '/');
+        if (!slash) {
+            fprintf(stderr, "Address received from server is broken\n");
+            exit(EXIT_FAILURE);
+        }
+        printf("Assigned ipv4 address by server: %s\n", buf);
+        *slash = '\0';
+        setup_tun("vpn-clt-tun", inet_addr(buf), atoi(slash + 1), &tun_fd, &sk_fd);
+        atexit(clean_up_all);
     } else {
         ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
     }
+
+    while(1);
 
     SSL_shutdown(ssl);
     SSL_free(ssl);

@@ -6,6 +6,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <linux/if_tun.h>
+#include <signal.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
@@ -13,6 +18,8 @@
 #define CA_CERT_FILE CERT_PATH "/../ca_file/ca.crt"
 #define CERT_FILE CERT_PATH "/host.crt"
 #define KEY_FILE CERT_PATH "/host.key"
+
+int tun_fd, sk_fd;
 
 void init_openssl(void);
 
@@ -23,6 +30,16 @@ SSL_CTX *create_client_context(void);
 void configure_context(SSL_CTX *ctx);
 
 void cleanup_openssl(void);
+
+void get_subnet(char* net_addr, in_addr_t *subnet, int *prefix_len);
+
+void setup_tun(char *tun_name, in_addr_t subnet_addr, int prefix_len, int *tun_fd, int *sk_fd);
+
+void clean_up_all(void);
+
+void handle_signal(int signal);
+
+void setup_signal_handler(void);
 
 #endif
 /* VPN_COMMON_H */
