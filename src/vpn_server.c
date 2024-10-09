@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
         if (SSL_accept(ssl) <= 0) {
             ERR_print_errors_fp(stderr);
         } else {
-            SSL_write(ssl, "Hello, SSL client!", strlen("Hello, SSL client!"));
+            SSL_write(ssl, "Hello, SSL VPN client!", strlen("Hello, SSL VPN client!"));
         }
         char buffer[1024] = {0};
         int bytes = SSL_read(ssl, buffer, sizeof(buffer));

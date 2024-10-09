@@ -2,10 +2,10 @@ add_definitions(-DCERT_PATH="${PROJECT_SOURCE_DIR}/certs")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-add_library(vpn_common STATIC vpn_common.c)
+add_library(vpn_common SHARED vpn_common.c)
 target_link_libraries(vpn_common ${OPENSSL_LIBS})
 set_target_properties(vpn_common PROPERTIES
-  ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
+  LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
 
 add_executable(vpn_client vpn_client.c)
 target_link_libraries(vpn_client vpn_common)

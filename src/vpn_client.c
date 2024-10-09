@@ -37,9 +37,19 @@ int main() {
         ERR_print_errors_fp(stderr);
     } else {
         printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
-        SSL_write(ssl, "Hello, VPN Server!", strlen("Hello, VPN Server!"));
+        SSL_write(ssl, "Hello, SSL VPN server!", strlen("Hello, SSL VPN server!"));
     }
 
+    char buffer[1024] = {0};
+    int bytes = SSL_read(ssl, buffer, sizeof(buffer));
+    if (bytes > 0) {
+        buffer[bytes] = '\0';
+        printf("Received message from server: %s\n", buffer);
+    } else {
+        ERR_print_errors_fp(stderr);
+    }
+
+    SSL_shutdown(ssl);
     SSL_free(ssl);
     close(sock);
     SSL_CTX_free(ctx);
