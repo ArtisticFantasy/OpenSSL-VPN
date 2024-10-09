@@ -2,9 +2,53 @@
 
 #define SERVER_IP "127.0.0.1"
 
+in_addr_t ip_addr;
+int prefix_len;
+
+void *tun_to_ssl(SSL *ssl) {
+    char buf[70000];
+    in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
+    while (1) {
+        int bytes = read(tun_fd, buf, sizeof(buf));
+
+        if (bytes <= 0) {
+            return NULL;
+        }
+
+        if (bytes < sizeof(struct iphdr)) {
+            continue;
+        }
+
+        struct iphdr *iph = (struct iphdr *)buf;
+        if ((iph->daddr & get_netmask(prefix_len)) != subnet_addr) {
+            continue;
+        }
+        
+        if (iph->daddr == ip_addr) {
+            continue;
+        }
+
+        SSL_write(ssl, buf, bytes);
+    }
+}
+
+void *ssl_to_tun(SSL *ssl) {
+    char buf[70000];
+    while (1) {
+        int bytes = SSL_read(ssl, buf, sizeof(buf));
+        if (bytes > 0) {
+            write(tun_fd, buf, bytes);
+        }
+        else {
+            return NULL;
+        }
+    }
+}
+
 int main() {
 
     setup_signal_handler();
+    atexit(clean_up_all);
 
     int sock;
     struct sockaddr_in server_addr;
@@ -40,7 +84,6 @@ int main() {
         ERR_print_errors_fp(stderr);
     } else {
         printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
-        SSL_write(ssl, "Hello, SSL VPN server!", strlen("Hello, SSL VPN server!"));
     }
 
     char buf[1000];
@@ -50,19 +93,41 @@ int main() {
         char *slash = strchr(buf, '/');
         if (!slash) {
             fprintf(stderr, "Address received from server is broken\n");
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+            close(sock);
             exit(EXIT_FAILURE);
         }
-        printf("Assigned ipv4 address by server: %s\n", buf);
         *slash = '\0';
-        setup_tun("vpn-clt-tun", inet_addr(buf), atoi(slash + 1), &tun_fd, &sk_fd);
-        atexit(clean_up_all);
+        ip_addr = inet_addr(buf);
+        if (ip_addr == INADDR_NONE) {
+            fprintf(stderr, "Address received from server is broken\n");
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+            close(sock);
+            exit(EXIT_FAILURE);
+        }
+        prefix_len = atoi(slash + 1);
+        printf("Assigned ipv4 address by server: %s\n", buf);
+        setup_tun("vpn-clt-tun", ip_addr, prefix_len, &tun_fd, &sk_fd);
+        /* TODO: modify routing table, and add clean up script */
     } else {
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        close(sock);
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
 
-    while(1);
 
+    // There will be two threads, one for reading from tun and writing to ssl, the other for reading from ssl and writing to tun
+    pthread_t tun_to_ssl_thread, ssl_to_tun_thread;
+    pthread_create(&tun_to_ssl_thread, NULL, (void*)tun_to_ssl, ssl);
+    pthread_create(&ssl_to_tun_thread, NULL, (void*)ssl_to_tun, ssl);
+    pthread_join(tun_to_ssl_thread, NULL);
+    pthread_join(ssl_to_tun_thread, NULL);
+
+    // Do the cleanup
     SSL_shutdown(ssl);
     SSL_free(ssl);
     close(sock);

@@ -6,6 +6,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
@@ -13,6 +15,8 @@
 #include <signal.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <pthread.h>
+#include <time.h>
 
 #define PORT 4433
 #define CA_CERT_FILE CERT_PATH "/../ca_file/ca.crt"
@@ -32,6 +36,8 @@ void configure_context(SSL_CTX *ctx);
 void cleanup_openssl(void);
 
 void get_subnet(char* net_addr, in_addr_t *subnet, int *prefix_len);
+
+in_addr_t get_netmask(int prefix_len);
 
 void setup_tun(char *tun_name, in_addr_t subnet_addr, int prefix_len, int *tun_fd, int *sk_fd);
 

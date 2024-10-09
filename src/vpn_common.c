@@ -78,15 +78,18 @@ void get_subnet(char *input_addr, in_addr_t *subnet, int *prefix_len) {
     }
     *subnet = inet_addr(net_addr);
     if (*subnet == INADDR_NONE) {
-        fprintf(stderr, "Invalid address\n");
+        fprintf(stderr, "Invalid subnet address\n");
         return;
     }
-    if (*subnet == INADDR_ANY || *subnet & htonl(((0xffffffff) >> *prefix_len))) {
-        fprintf(stderr, "Invalid address\n");
+    if (*subnet == INADDR_ANY || *subnet & ~get_netmask(*prefix_len)) {
+        fprintf(stderr, "Invalid subnet address\n");
         *subnet = INADDR_NONE;
         return;
     }
-    *subnet &= htonl(((0xffffffff) << (32 - *prefix_len)));
+}
+
+in_addr_t get_netmask(int prefix_len) {
+    return htonl(~((1 << (32 - prefix_len)) - 1));
 }
 
 
@@ -135,7 +138,7 @@ void setup_tun(char *tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, i
         exit(EXIT_FAILURE);
     }
 
-    tun_addr.sin_addr.s_addr = htonl(~((1 << (32 - prefix_len)) - 1));
+    tun_addr.sin_addr.s_addr = get_netmask(prefix_len);
     
     memcpy(&ifr.ifr_addr, &tun_addr, sizeof(struct sockaddr_in));
 
@@ -155,6 +158,7 @@ void clean_up_all(void) {
     if (sk_fd != -1) {
         close(sk_fd);
     }
+    cleanup_openssl();
 }
 void handle_signal(int signal) {
     if (signal == SIGINT) {
