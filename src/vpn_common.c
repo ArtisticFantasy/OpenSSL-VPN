@@ -65,24 +65,20 @@ void get_subnet(char *input_addr, in_addr_t *subnet, int *prefix_len) {
     net_addr[strlen(input_addr)] = '\0';
     char *slash = strchr(net_addr, '/');
     if (!slash) {
-        fprintf(stderr, "Invalid subnet address\n");
         *subnet = INADDR_NONE;
         return;
     }
     *slash = '\0';
     *prefix_len = atoi(slash + 1);
     if (*prefix_len < 16 || *prefix_len >= 32) {
-        fprintf(stderr, "Invalid prefix length\n");
         *subnet = INADDR_NONE;
         return;
     }
     *subnet = inet_addr(net_addr);
     if (*subnet == INADDR_NONE) {
-        fprintf(stderr, "Invalid subnet address\n");
         return;
     }
     if (*subnet == INADDR_ANY || *subnet & ~get_netmask(*prefix_len)) {
-        fprintf(stderr, "Invalid subnet address\n");
         *subnet = INADDR_NONE;
         return;
     }
