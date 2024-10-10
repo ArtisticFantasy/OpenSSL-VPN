@@ -69,6 +69,14 @@ void *listen_and_deliver_packets(int *hostid) {
             return NULL;
         }
 
+        //keep alive
+        if (bytes == strlen("hello")) {
+            if (strncmp(buf, "hello", strlen("hello")) == 0) {
+                clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
+            }
+            continue;
+        }
+
         if (bytes < sizeof(struct iphdr)) {
             continue;
         }

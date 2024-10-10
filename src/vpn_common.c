@@ -192,15 +192,14 @@ void modify_route(const char *dest, const char *gateway, const char *interface, 
     memset(&req, 0, sizeof(req));
 
     req.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
-    req.nlh.nlmsg_flags = flags;//NLM_F_REQUEST | NLM_F_CREATE;
-    req.nlh.nlmsg_type = type;//RTM_NEWROUTE;
+    req.nlh.nlmsg_flags = flags;
+    req.nlh.nlmsg_type = type;
     req.rt.rtm_family = AF_INET;
     req.rt.rtm_table = RT_TABLE_MAIN;
     req.rt.rtm_protocol = RTPROT_BOOT;
     req.rt.rtm_scope = RT_SCOPE_UNIVERSE;
     req.rt.rtm_type = RTN_UNICAST;
 
-    // 解析目标地址和子网掩码
     char dest_copy[100];
     strncpy(dest_copy, dest, sizeof(dest_copy));
     char *slash = strchr(dest_copy, '/');
@@ -208,7 +207,7 @@ void modify_route(const char *dest, const char *gateway, const char *interface, 
         *slash = '\0';
         req.rt.rtm_dst_len = atoi(slash + 1);
     } else {
-        req.rt.rtm_dst_len = 32; // 默认子网掩码长度
+        req.rt.rtm_dst_len = 32;
     }
 
     struct rtattr *rta = (struct rtattr *)(((char *)&req) + NLMSG_ALIGN(req.nlh.nlmsg_len));

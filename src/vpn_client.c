@@ -42,6 +42,13 @@ void *ssl_to_tun(SSL *ssl) {
     }
 }
 
+void *keep_alive(SSL *ssl) {
+    while (1) {
+        sleep(200);
+        SSL_write(ssl, "hello", strlen("hello"));
+    }
+}
+
 int main(int argc, char **argv) {
 
     if (argc < 2) {
@@ -130,12 +137,15 @@ int main(int argc, char **argv) {
 
 
     // There will be two threads, one for reading from tun and writing to ssl, the other for reading from ssl and writing to tun
-    pthread_t tun_to_ssl_thread, ssl_to_tun_thread;
+    pthread_t tun_to_ssl_thread, ssl_to_tun_thread, keep_alive_thread;
     pthread_create(&tun_to_ssl_thread, NULL, (void*)tun_to_ssl, ssl);
     pthread_create(&ssl_to_tun_thread, NULL, (void*)ssl_to_tun, ssl);
+    pthread_create(&keep_alive_thread, NULL, (void*)keep_alive, ssl);
     pthread_join(ssl_to_tun_thread, NULL);
     pthread_cancel(tun_to_ssl_thread);
+    pthread_cancel(keep_alive_thread);
     pthread_join(tun_to_ssl_thread, NULL);
+    pthread_join(keep_alive_thread, NULL);
     
 
     fprintf(stderr, "Connection closed by server\n");
