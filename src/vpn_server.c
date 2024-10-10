@@ -203,10 +203,10 @@ int main(int argc, char **argv) {
     real_iptable[1] = inet_addr("127.0.0.1");
     ip_addr = subnet_addr + htonl(1);
 
-    setup_tun("vpn-srv-tun", ip_addr, prefix_len, &tun_fd, &sk_fd);
+    setup_tun(&vpn_tun_name, ip_addr, prefix_len, &tun_fd, &sk_fd);
     sprintf(subnet_str, "%s/%d", inet_ntoa(*(struct in_addr *)&subnet_addr), prefix_len);
-    add_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), "vpn-srv-tun");
-    vpn_tun_name = "vpn-srv-tun";
+    add_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
+    route_added = 1;
 
     // Now we can start the server
     int sock;

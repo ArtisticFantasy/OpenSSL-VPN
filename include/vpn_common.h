@@ -26,7 +26,8 @@
 #define KEY_FILE CERT_PATH "/host.key"
 
 int tun_fd = -1, sk_fd = -1;
-char *vpn_tun_name = NULL;
+char *vpn_tun_name;
+int route_added = 0;
 in_addr_t ip_addr;
 char subnet_str[100];
 
@@ -44,7 +45,7 @@ void get_subnet(char* net_addr, in_addr_t *subnet, int *prefix_len);
 
 in_addr_t get_netmask(int prefix_len);
 
-void setup_tun(char *tun_name, in_addr_t subnet_addr, int prefix_len, int *tun_fd, int *sk_fd);
+void setup_tun(char **tun_name, in_addr_t subnet_addr, int prefix_len, int *tun_fd, int *sk_fd);
 
 void clean_up_all(void);
 

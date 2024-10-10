@@ -93,8 +93,10 @@ in_addr_t get_netmask(int prefix_len) {
 }
 
 
-void setup_tun(char *tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, int *sk_fd) {
-    // Create TUN
+void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, int *sk_fd) {
+
+#ifdef __linux__
+
     struct ifreq ifr;
     *tun_fd = open("/dev/net/tun", O_RDWR);
     if (*tun_fd < 0) {
@@ -104,7 +106,7 @@ void setup_tun(char *tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, i
 
     memset(&ifr, 0, sizeof(ifr));
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
-    strncpy(ifr.ifr_name, tun_name, IFNAMSIZ);
+    ifr.ifr_name[0] = '\0';
 
     if (ioctl(*tun_fd, TUNSETIFF, (void *)&ifr) < 0) {
         perror("ioctl(TUNSETIFF)");
@@ -112,8 +114,11 @@ void setup_tun(char *tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, i
         exit(EXIT_FAILURE);
     }
 
-    // Set IP address
-    *sk_fd = socket(AF_INET, SOCK_RAW, htons(ETH_P_IP));
+    *tun_name = (char*)malloc(IFNAMSIZ + 10);
+    strncpy(*tun_name, ifr.ifr_name, IFNAMSIZ);
+    (*tun_name)[IFNAMSIZ] = '\0';
+
+    *sk_fd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 
     ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
 
@@ -149,23 +154,31 @@ void setup_tun(char *tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, i
         exit(EXIT_FAILURE);
     }
 
+#endif
 }
 
 void clean_up_all(void) {
+    if (route_added && vpn_tun_name) {
+        del_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
+        route_added = 0;
+    }
     if (tun_fd != -1) {
         close(tun_fd);
+        tun_fd = -1;
+        if (vpn_tun_name) {
+            free(vpn_tun_name);
+            vpn_tun_name = NULL;
+        }
     }
+
     if (sk_fd != -1) {
         close(sk_fd);
-    }
-    if (vpn_tun_name) {
-        del_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
+        sk_fd = -1;
     }
     cleanup_openssl();
 }
 void handle_signal(int signal) {
     if (signal == SIGINT) {
-        clean_up_all();
         exit(EXIT_SUCCESS);
     }
 }

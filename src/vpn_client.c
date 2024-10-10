@@ -121,12 +121,11 @@ int main(int argc, char **argv) {
         prefix_len = atoi(slash + 1);
         *slash = '/';
         printf("Assigned ipv4 address by server: %s\n", buf);
-        setup_tun("vpn-clt-tun", ip_addr, prefix_len, &tun_fd, &sk_fd);
-        
+        setup_tun(&vpn_tun_name, ip_addr, prefix_len, &tun_fd, &sk_fd);
         in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
         sprintf(subnet_str, "%s/%d", inet_ntoa(*(struct in_addr *)&subnet_addr), prefix_len);
-        add_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), "vpn-clt-tun");
-        vpn_tun_name = "vpn-clt-tun";
+        add_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
+        route_added = 1;
     } else {
         SSL_shutdown(ssl);
         SSL_free(ssl);
@@ -134,7 +133,6 @@ int main(int argc, char **argv) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
-
 
     // There will be two threads, one for reading from tun and writing to ssl, the other for reading from ssl and writing to tun
     pthread_t tun_to_ssl_thread, ssl_to_tun_thread, keep_alive_thread;
