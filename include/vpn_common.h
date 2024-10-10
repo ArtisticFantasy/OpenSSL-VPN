@@ -17,6 +17,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <sys/socket.h>
+#include <assert.h>
 
 #ifdef __linux__
 #include <linux/if_tun.h>

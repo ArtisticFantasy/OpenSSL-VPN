@@ -234,7 +234,13 @@ int main(int argc, char **argv) {
     for (int i=0; i<3; i++) {
         in_addr_t subnet_addr_tmp;
         int prefix_len_tmp;
-        get_subnet(valid_prefixes[i], &subnet_addr_tmp, &prefix_len_tmp);
+        char cur_valid_prefix[100];
+        strcpy(cur_valid_prefix, valid_prefixes[i]);
+        char *slash = strchr(cur_valid_prefix, '/');
+        assert(slash && "Valid prefix is broken");
+        *slash = '\0';
+        subnet_addr_tmp = inet_addr(cur_valid_prefix);
+        prefix_len_tmp = atoi(slash + 1);
         if ((subnet_addr & get_netmask(prefix_len_tmp)) == subnet_addr_tmp && prefix_len >= prefix_len_tmp) {
             break;
         }
@@ -248,6 +254,8 @@ int main(int argc, char **argv) {
     used_ips[1] = 1;
     real_iptable[1] = inet_addr("127.0.0.1");
     ip_addr = subnet_addr + htonl(1);
+
+    printf("Server IP: %s/%d\n", inet_ntoa(*(struct in_addr *)&ip_addr), prefix_len);
 
     setup_tun(&vpn_tun_name, ip_addr, prefix_len, &tun_fd, &sk_fd);
     sprintf(subnet_str, "%s/%d", inet_ntoa(*(struct in_addr *)&subnet_addr), prefix_len);
