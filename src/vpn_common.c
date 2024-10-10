@@ -158,6 +158,9 @@ void clean_up_all(void) {
     if (sk_fd != -1) {
         close(sk_fd);
     }
+    if (vpn_tun_name) {
+        del_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
+    }
     cleanup_openssl();
 }
 void handle_signal(int signal) {
@@ -177,4 +180,81 @@ void setup_signal_handler() {
         perror("sigaction");
         exit(EXIT_FAILURE);
     }
+}
+
+void modify_route(const char *dest, const char *gateway, const char *interface, int flags, int type) {
+    struct {
+        struct nlmsghdr nlh;
+        struct rtmsg rt;
+        char buf[8192];
+    } req;
+
+    memset(&req, 0, sizeof(req));
+
+    req.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
+    req.nlh.nlmsg_flags = flags;//NLM_F_REQUEST | NLM_F_CREATE;
+    req.nlh.nlmsg_type = type;//RTM_NEWROUTE;
+    req.rt.rtm_family = AF_INET;
+    req.rt.rtm_table = RT_TABLE_MAIN;
+    req.rt.rtm_protocol = RTPROT_BOOT;
+    req.rt.rtm_scope = RT_SCOPE_UNIVERSE;
+    req.rt.rtm_type = RTN_UNICAST;
+
+    // 解析目标地址和子网掩码
+    char dest_copy[100];
+    strncpy(dest_copy, dest, sizeof(dest_copy));
+    char *slash = strchr(dest_copy, '/');
+    if (slash) {
+        *slash = '\0';
+        req.rt.rtm_dst_len = atoi(slash + 1);
+    } else {
+        req.rt.rtm_dst_len = 32; // 默认子网掩码长度
+    }
+
+    struct rtattr *rta = (struct rtattr *)(((char *)&req) + NLMSG_ALIGN(req.nlh.nlmsg_len));
+    int rta_len = RTA_LENGTH(4);
+    rta->rta_type = RTA_DST;
+    rta->rta_len = rta_len;
+    inet_pton(AF_INET, dest_copy, RTA_DATA(rta));
+    req.nlh.nlmsg_len = NLMSG_ALIGN(req.nlh.nlmsg_len) + rta_len;
+
+    rta = (struct rtattr *)(((char *)&req) + NLMSG_ALIGN(req.nlh.nlmsg_len));
+    rta_len = RTA_LENGTH(4);
+    rta->rta_type = RTA_GATEWAY;
+    rta->rta_len = rta_len;
+    inet_pton(AF_INET, gateway, RTA_DATA(rta));
+    req.nlh.nlmsg_len = NLMSG_ALIGN(req.nlh.nlmsg_len) + rta_len;
+
+    rta = (struct rtattr *)(((char *)&req) + NLMSG_ALIGN(req.nlh.nlmsg_len));
+    rta_len = RTA_LENGTH(strlen(interface) + 1);
+    rta->rta_type = RTA_OIF;
+    rta->rta_len = rta_len;
+    memcpy(RTA_DATA(rta), interface, strlen(interface) + 1);
+    req.nlh.nlmsg_len = NLMSG_ALIGN(req.nlh.nlmsg_len) + rta_len;
+
+    int sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+    if (sock < 0) {
+        perror("socket");
+        exit(EXIT_FAILURE);
+    }
+
+    struct sockaddr_nl sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.nl_family = AF_NETLINK;
+
+    if (sendto(sock, &req, req.nlh.nlmsg_len, 0, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+        perror("sendto");
+        close(sock);
+        exit(EXIT_FAILURE);
+    }
+
+    close(sock);
+}
+
+void add_route(const char *dest, const char *gateway, const char *interface) {
+    modify_route(dest, gateway, interface, NLM_F_REQUEST | NLM_F_CREATE, RTM_NEWROUTE);
+}
+
+void del_route(const char *dest, const char *gateway, const char *interface) {
+    modify_route(dest, gateway, interface, NLM_F_REQUEST, RTM_DELROUTE);
 }

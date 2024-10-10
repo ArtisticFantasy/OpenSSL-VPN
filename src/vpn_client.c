@@ -1,8 +1,5 @@
 #include "vpn_common.h"
 
-#define SERVER_IP "127.0.0.1"
-
-in_addr_t ip_addr;
 int prefix_len;
 
 void *tun_to_ssl(SSL *ssl) {
@@ -45,7 +42,14 @@ void *ssl_to_tun(SSL *ssl) {
     }
 }
 
-int main() {
+int main(int argc, char **argv) {
+
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <server_public_address>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    char *server_ip = argv[1];
 
     setup_signal_handler();
     atexit(clean_up_all);
@@ -67,7 +71,7 @@ int main() {
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
-    if (inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
         perror("Invalid address/ Address not supported");
         exit(EXIT_FAILURE);
     }
@@ -108,9 +112,14 @@ int main() {
             exit(EXIT_FAILURE);
         }
         prefix_len = atoi(slash + 1);
+        *slash = '/';
         printf("Assigned ipv4 address by server: %s\n", buf);
         setup_tun("vpn-clt-tun", ip_addr, prefix_len, &tun_fd, &sk_fd);
-        /* TODO: modify routing table, and add clean up script */
+        
+        in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
+        sprintf(subnet_str, "%s/%d", inet_ntoa(*(struct in_addr *)&subnet_addr), prefix_len);
+        add_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), "vpn-clt-tun");
+        vpn_tun_name = "vpn-clt-tun";
     } else {
         SSL_shutdown(ssl);
         SSL_free(ssl);
@@ -124,8 +133,12 @@ int main() {
     pthread_t tun_to_ssl_thread, ssl_to_tun_thread;
     pthread_create(&tun_to_ssl_thread, NULL, (void*)tun_to_ssl, ssl);
     pthread_create(&ssl_to_tun_thread, NULL, (void*)ssl_to_tun, ssl);
-    pthread_join(tun_to_ssl_thread, NULL);
     pthread_join(ssl_to_tun_thread, NULL);
+    pthread_cancel(tun_to_ssl_thread);
+    pthread_join(tun_to_ssl_thread, NULL);
+    
+
+    fprintf(stderr, "Connection closed by server\n");
 
     // Do the cleanup
     SSL_shutdown(ssl);

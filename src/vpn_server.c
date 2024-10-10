@@ -3,9 +3,7 @@
 #define MAX_HOSTS 1<<16
 
 in_addr_t subnet_addr;
-in_addr_t ip_addr;
 int prefix_len;
-int tun_fd = -1, sk_fd = -1;
 
 char *valid_prefixes[3] = {"192.168.0.0/16", "172.16.0.0/12", "10.0.0.0/8"};
 
@@ -43,7 +41,7 @@ int get_ip() {
         if (!used_ips[i]) {
             return i;
         }
-        else if (now.tv_sec - last_active[i].tv_sec >= 500) {
+        else if (now.tv_sec - last_active[i].tv_sec >= 2000) {
             pthread_cancel(threads[i]);
             pthread_join(threads[i], NULL);
             reset_conn(i);
@@ -110,7 +108,7 @@ void *clean_timeout_conns() {
         sleep(500);
         clock_gettime(CLOCK_MONOTONIC, &now);
         for (int i = 2; i < (1 << 32 - prefix_len); i++) {
-            if (used_ips[i] && now.tv_sec - last_active[i].tv_sec >= 500) {
+            if (used_ips[i] && now.tv_sec - last_active[i].tv_sec >= 2000) {
                 pthread_cancel(threads[i]);
                 pthread_join(threads[i], NULL);
                 reset_conn(i);
@@ -198,6 +196,9 @@ int main(int argc, char **argv) {
     ip_addr = subnet_addr + htonl(1);
 
     setup_tun("vpn-srv-tun", ip_addr, prefix_len, &tun_fd, &sk_fd);
+    sprintf(subnet_str, "%s/%d", inet_ntoa(*(struct in_addr *)&subnet_addr), prefix_len);
+    add_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), "vpn-srv-tun");
+    vpn_tun_name = "vpn-srv-tun";
 
     // Now we can start the server
     int sock;

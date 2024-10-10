@@ -17,13 +17,18 @@
 #include <openssl/err.h>
 #include <pthread.h>
 #include <time.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
 
 #define PORT 4433
 #define CA_CERT_FILE CERT_PATH "/../ca_file/ca.crt"
 #define CERT_FILE CERT_PATH "/host.crt"
 #define KEY_FILE CERT_PATH "/host.key"
 
-int tun_fd, sk_fd;
+int tun_fd = -1, sk_fd = -1;
+char *vpn_tun_name = NULL;
+in_addr_t ip_addr;
+char subnet_str[100];
 
 void init_openssl(void);
 
@@ -46,6 +51,10 @@ void clean_up_all(void);
 void handle_signal(int signal);
 
 void setup_signal_handler(void);
+
+void add_route(const char *dest, const char *gateway, const char *interface);
+
+void del_route(const char *dest, const char *gateway, const char *interface);
 
 #endif
 /* VPN_COMMON_H */
