@@ -20,7 +20,7 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 
-#define PORT 4433
+#define PORT 54433
 #define CA_CERT_FILE CERT_PATH "/../ca_file/ca.crt"
 #define CERT_FILE CERT_PATH "/host.crt"
 #define KEY_FILE CERT_PATH "/host.key"
