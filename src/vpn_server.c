@@ -312,7 +312,6 @@ int main(int argc, char **argv) {
         if (SSL_accept(ssl) <= 0) {
             ERR_print_errors_fp(stderr);
         } else {
-            //SSL_write(ssl, "Hello, SSL VPN client!", strlen("Hello, SSL VPN client!"));
             // Assign IP for client
             int host_id = get_ip();
             if (host_id > 0) {
