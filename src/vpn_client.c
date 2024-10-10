@@ -6,17 +6,20 @@ void *tun_to_ssl(SSL *ssl) {
     char buf[70000];
     in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
     while (1) {
+#ifdef __linux__
         int bytes = read(tun_fd, buf, sizeof(buf));
+#elif __APPLE__
+        int bytes = mac_read_tun(tun_fd, buf, sizeof(buf));
+#endif
 
         if (bytes <= 0) {
             return NULL;
         }
 
+#ifdef __linux__
         if (bytes < sizeof(struct iphdr)) {
             continue;
         }
-
-        #ifdef __linux__
         struct iphdr *iph = (struct iphdr *)buf;
         if ((iph->daddr & get_netmask(prefix_len)) != subnet_addr) {
             continue;
@@ -25,7 +28,10 @@ void *tun_to_ssl(SSL *ssl) {
         if (iph->daddr == ip_addr) {
             continue;
         }
-        #elif __APPLE__
+#elif __APPLE__
+        if (bytes < sizeof(struct ip)) {
+            continue;
+        }
         struct ip *iph = (struct ip *)buf;
         if ((iph->ip_dst.s_addr & get_netmask(prefix_len)) != subnet_addr) {
             continue;
@@ -34,8 +40,7 @@ void *tun_to_ssl(SSL *ssl) {
         if (iph->ip_dst.s_addr == ip_addr) {
             continue;
         }
-        #endif
-        
+#endif
         SSL_write(ssl, buf, bytes);
     }
 }
@@ -45,7 +50,11 @@ void *ssl_to_tun(SSL *ssl) {
     while (1) {
         int bytes = SSL_read(ssl, buf, sizeof(buf));
         if (bytes > 0) {
+#ifdef __linux__
             write(tun_fd, buf, bytes);
+#elif __APPLE__
+            mac_write_tun(tun_fd, buf, bytes);
+#endif
         }
         else {
             return NULL;

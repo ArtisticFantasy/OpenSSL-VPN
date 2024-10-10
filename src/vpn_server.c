@@ -93,6 +93,8 @@ void *listen_and_deliver_packets(int *hostid) {
             write(tun_fd, buf, bytes);
             continue;
         }
+
+        int target_host_id = ntohl(iph->daddr - subnet_addr);
 #elif __APPLE__
         if (bytes < sizeof(struct ip)) {
             continue;
@@ -105,12 +107,12 @@ void *listen_and_deliver_packets(int *hostid) {
         clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
 
         if (iph->ip_dst.s_addr == ip_addr) {
-            write(tun_fd, buf, bytes);
+            mac_write_tun(tun_fd, buf, bytes);
             continue;
         }
+
+        int target_host_id = ntohl(iph->ip_dst.s_addr - subnet_addr);
 #endif
-        
-        int target_host_id = ntohl(iph->daddr - subnet_addr);
 
         if (used_ips[target_host_id] == 0) {
             continue;
@@ -147,7 +149,11 @@ void *tun_to_ssl(void) {
     char buf[70000];
     in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
     while (1) {
+#ifdef __linux__
         int bytes = read(tun_fd, buf, sizeof(buf));
+#elif __APPLE__
+        int bytes = mac_read_tun(tun_fd, buf, sizeof(buf));
+#endif
 
         if (bytes <= 0) {
             return NULL;

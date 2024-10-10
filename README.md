@@ -1,6 +1,6 @@
 # OpenSSL VPN Demo
 ## 简介
-面向Linux操作系统设计的轻量级SSL VPN
+面向Linux/MacOS的轻量级SSL VPN
 
 一个vpn_server与多个vpn_client之间构成一个虚拟子网，vpn_client与vpn_server建立连接时，vpn_server会自动给vpn_client分配一个虚拟IPv4地址，之后便可按照局域网通信的方式访问虚拟子网内所有主机
 

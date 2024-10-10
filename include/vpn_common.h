@@ -11,7 +11,6 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
-#include <linux/if_tun.h>
 #include <signal.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -20,6 +19,7 @@
 #include <sys/socket.h>
 
 #ifdef __linux__
+#include <linux/if_tun.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #elif __APPLE__
@@ -67,6 +67,12 @@ void setup_signal_handler(void);
 void add_route(const char *dest, const char *gateway, const char *interface);
 
 void del_route(const char *dest, const char *gateway, const char *interface);
+
+#ifdef __APPLE__
+int mac_read_tun(int tun_fd, char *buf, int len);
+
+int mac_write_tun(int tun_fd, char *buf, int len);
+#endif
 
 #endif
 /* VPN_COMMON_H */

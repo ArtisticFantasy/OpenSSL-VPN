@@ -316,62 +316,49 @@ void modify_route(const char *dest, const char *gateway, const char *interface, 
 #elif __APPLE__
      struct {
         struct rt_msghdr hdr;
-        char buf[512];
+        struct sockaddr_in addr[3];
     } req;
 
     memset(&req, 0, sizeof(req));
 
-    req.hdr.rtm_msglen = sizeof(struct rt_msghdr);
+    req.hdr.rtm_msglen = sizeof(req);
     req.hdr.rtm_version = RTM_VERSION;
     req.hdr.rtm_type = type;
     req.hdr.rtm_flags = flags;
-    req.hdr.rtm_addrs = RTA_DST | RTA_GATEWAY | RTA_NETMASK | RTA_IFP;
-    req.hdr.rtm_pid = getpid();
-    req.hdr.rtm_seq = 1;
+    req.hdr.rtm_addrs = RTA_DST | RTA_GATEWAY | RTA_NETMASK;
 
     char dest_copy[100];
     strncpy(dest_copy, dest, sizeof(dest_copy));
     char *slash = strchr(dest_copy, '/');
+    int prefix_len = 32;
     if (slash) {
         *slash = '\0';
-        req.hdr.rtm_dst_len = atoi(slash + 1);
-    } else {
-        req.hdr.rtm_dst_len = 32;
+        prefix_len = atoi(slash + 1);
     }
 
-    struct sockaddr_in *addr = (struct sockaddr_in *)(req.buf);
+    struct sockaddr_in *addr = &req.addr[0];
     addr->sin_len = sizeof(struct sockaddr_in);
     addr->sin_family = AF_INET;
     inet_pton(AF_INET, dest_copy, &addr->sin_addr);
-    req.hdr.rtm_msglen += sizeof(struct sockaddr_in);
 
-    addr = (struct sockaddr_in *)(req.buf + req.hdr.rtm_msglen);
+    addr = &req.addr[1];
     addr->sin_len = sizeof(struct sockaddr_in);
     addr->sin_family = AF_INET;
     inet_pton(AF_INET, gateway, &addr->sin_addr);
-    req.hdr.rtm_msglen += sizeof(struct sockaddr_in);
 
-    addr = (struct sockaddr_in *)(req.buf + req.hdr.rtm_msglen);
+    addr = &req.addr[2];
     addr->sin_len = sizeof(struct sockaddr_in);
     addr->sin_family = AF_INET;
-    addr->sin_addr.s_addr = get_netmask(req.hdr.rtm_dst_len);
-    req.hdr.rtm_msglen += sizeof(struct sockaddr_in);
+    addr->sin_addr.s_addr = get_netmask(prefix_len);
 
-    struct sockaddr_dl *sdl = (struct sockaddr_dl *)(req.buf + req.hdr.rtm_msglen);
-    sdl->sdl_len = sizeof(struct sockaddr_dl);
-    sdl->sdl_family = AF_LINK;
-    sdl->sdl_nlen = strlen(interface);
-    memcpy(sdl->sdl_data, interface, sdl->sdl_nlen);
-    req.hdr.rtm_msglen += sizeof(struct sockaddr_dl);
-
-    int sock = socket(PF_ROUTE, SOCK_RAW, 0);
+    int sock = socket(AF_ROUTE, SOCK_RAW, 0);
     if (sock < 0) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
 
-    if (write(sock, &req, req.hdr.rtm_msglen) < 0) {
-        perror("write");
+    if (send(sock, &req, sizeof(req), MSG_NOSIGNAL) < 0) {
+        perror("send");
         close(sock);
         exit(EXIT_FAILURE);
     }
@@ -395,3 +382,23 @@ void del_route(const char *dest, const char *gateway, const char *interface) {
     modify_route(dest, gateway, interface, RTF_UP | RTF_GATEWAY, RTM_DELETE);
 #endif
 }
+
+#ifdef __APPLE__
+int mac_read_tun(int tun_fd, char *buf, int len) {
+    char tmp[70000];
+    int bytes = read(tun_fd, tmp, len + 4);
+    if (bytes < 4) {
+        return -1;
+    }
+    memcpy(buf, tmp + 4, bytes - 4);
+    return bytes - 4;
+}
+
+int mac_write_tun(int tun_fd, char *buf, int len) {
+    char tmp[70000];
+    int x = htonl(AF_INET);
+    memcpy(tmp, &x, 4);
+    memcpy(tmp + 4, buf, len);
+    return write(tun_fd, tmp, len + 4);
+}
+#endif
