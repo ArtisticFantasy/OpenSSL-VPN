@@ -16,6 +16,7 @@ void *tun_to_ssl(SSL *ssl) {
             continue;
         }
 
+        #ifdef __linux__
         struct iphdr *iph = (struct iphdr *)buf;
         if ((iph->daddr & get_netmask(prefix_len)) != subnet_addr) {
             continue;
@@ -24,7 +25,17 @@ void *tun_to_ssl(SSL *ssl) {
         if (iph->daddr == ip_addr) {
             continue;
         }
-
+        #elif __APPLE__
+        struct ip *iph = (struct ip *)buf;
+        if ((iph->ip_dst.s_addr & get_netmask(prefix_len)) != subnet_addr) {
+            continue;
+        }
+        
+        if (iph->ip_dst.s_addr == ip_addr) {
+            continue;
+        }
+        #endif
+        
         SSL_write(ssl, buf, bytes);
     }
 }

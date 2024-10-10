@@ -48,7 +48,8 @@ int get_ip() {
             return i;
         }
         else {
-            if (pthread_tryjoin_np(threads[i], NULL) == 0) {
+            if (pthread_kill(threads[i], 0) != 0) {
+                pthread_join(threads[i], NULL);
                 reset_conn(i);
                 return i;
             }
@@ -77,10 +78,10 @@ void *listen_and_deliver_packets(int *hostid) {
             continue;
         }
 
+#ifdef __linux__
         if (bytes < sizeof(struct iphdr)) {
             continue;
         }
-
         struct iphdr *iph = (struct iphdr *)buf;
         if ((iph->saddr != subnet_addr + htonl(host_id)) || (iph->daddr & get_netmask(prefix_len)) != subnet_addr) {
             continue;
@@ -92,6 +93,22 @@ void *listen_and_deliver_packets(int *hostid) {
             write(tun_fd, buf, bytes);
             continue;
         }
+#elif __APPLE__
+        if (bytes < sizeof(struct ip)) {
+            continue;
+        }
+        struct ip *iph = (struct ip *)buf;
+        if ((iph->ip_src.s_addr != subnet_addr + htonl(host_id)) || (iph->ip_dst.s_addr & get_netmask(prefix_len)) != subnet_addr) {
+            continue;
+        }
+
+        clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
+
+        if (iph->ip_dst.s_addr == ip_addr) {
+            write(tun_fd, buf, bytes);
+            continue;
+        }
+#endif
         
         int target_host_id = ntohl(iph->daddr - subnet_addr);
 
@@ -99,7 +116,8 @@ void *listen_and_deliver_packets(int *hostid) {
             continue;
         }
 
-        if (pthread_tryjoin_np(threads[target_host_id], NULL) == 0) {
+        if (pthread_kill(threads[target_host_id], 0) != 0) {
+            pthread_join(threads[target_host_id], NULL);
             reset_conn(target_host_id);
             continue;
         }
@@ -135,6 +153,7 @@ void *tun_to_ssl(void) {
             return NULL;
         }
 
+#ifdef __linux__
         if (bytes < sizeof(struct iphdr)) {
             continue;
         }
@@ -153,12 +172,33 @@ void *tun_to_ssl(void) {
         }
 
         int target_host_id = ntohl(iph->daddr - subnet_addr);
+#elif __APPLE__
+        if (bytes < sizeof(struct ip)) {
+            continue;
+        }
+
+        struct ip *iph = (struct ip *)buf;
+        if ((iph->ip_dst.s_addr & get_netmask(prefix_len)) != subnet_addr) {
+            continue;
+        }
+
+        if (iph->ip_dst.s_addr == ip_addr) {
+            continue;
+        }
+
+        if (iph->ip_src.s_addr != ip_addr) {
+            continue;
+        }
+
+        int target_host_id = ntohl(iph->ip_dst.s_addr - subnet_addr);
+#endif
 
         if (used_ips[target_host_id] == 0) {
             continue;
         }
 
-        if (pthread_tryjoin_np(threads[target_host_id], NULL) == 0) {
+        if (pthread_kill(threads[target_host_id], 0) != 0) {
+            pthread_join(threads[target_host_id], NULL);
             reset_conn(target_host_id);
             continue;
         }

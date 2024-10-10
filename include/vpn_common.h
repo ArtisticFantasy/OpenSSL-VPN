@@ -17,8 +17,19 @@
 #include <openssl/err.h>
 #include <pthread.h>
 #include <time.h>
+#include <sys/socket.h>
+
+#ifdef __linux__
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+#elif __APPLE__
+#include <sys/kern_control.h>
+#include <sys/kern_event.h>
+#include <sys/kern_control.h>
+#include <net/if_utun.h>
+#include <net/if_dl.h>
+#include <net/route.h>
+#endif
 
 #define PORT 54433
 #define CA_CERT_FILE CERT_PATH "/../ca_file/ca.crt"

@@ -94,10 +94,8 @@ in_addr_t get_netmask(int prefix_len) {
 
 
 void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, int *sk_fd) {
-
-#ifdef __linux__
-
     struct ifreq ifr;
+#ifdef __linux__
     *tun_fd = open("/dev/net/tun", O_RDWR);
     if (*tun_fd < 0) {
         perror("Opening /dev/net/tun");
@@ -113,6 +111,43 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
         close(*tun_fd);
         exit(EXIT_FAILURE);
     }
+#elif __APPLE__
+    *tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
+    if (*tun_fd < 0) {
+        perror("Opening utun device");
+        exit(EXIT_FAILURE);
+    }
+    struct sockaddr_ctl addr;
+    struct ctl_info ctl_info;
+    memset(&ctl_info, 0, sizeof(ctl_info));
+    strncpy(ctl_info.ctl_name, UTUN_CONTROL_NAME, MAX_KCTL_NAME);
+
+    if (ioctl(*tun_fd, CTLIOCGINFO, &ctl_info) == -1) {
+        perror("ioctl(CTLIOCGINFO)");
+        close(*tun_fd);
+        exit(EXIT_FAILURE);
+    }
+
+    memset(&addr, 0, sizeof(addr));
+    addr.sc_len = sizeof(addr);
+    addr.sc_family = AF_SYSTEM;
+    addr.ss_sysaddr = AF_SYS_CONTROL;
+    addr.sc_id = ctl_info.ctl_id;
+    addr.sc_unit = 0;
+
+    if (connect(*tun_fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+        perror("connect");
+        close(*tun_fd);
+        exit(EXIT_FAILURE);
+    }
+
+    socklen_t utun_name_len = sizeof(ifr.ifr_name);
+    if (getsockopt(*tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, ifr.ifr_name, &utun_name_len) == -1) {
+        perror("getsockopt(UTUN_OPT_IFNAME)");
+        close(*tun_fd);
+        exit(EXIT_FAILURE);
+    }
+#endif
 
     *tun_name = (char*)malloc(IFNAMSIZ + 10);
     strncpy(*tun_name, ifr.ifr_name, IFNAMSIZ);
@@ -120,12 +155,28 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
 
     *sk_fd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 
+    if (*sk_fd < 0) {
+        perror("Unable to create socket");
+        close(*tun_fd);
+        free(*tun_name);
+        exit(EXIT_FAILURE);
+    }
+
+    if (ioctl(*sk_fd, SIOCGIFFLAGS, &ifr) < 0) {
+        perror("ioctl(SIOCGIFFLAGS)");
+        close(*tun_fd);
+        close(*sk_fd);
+        free(*tun_name);
+        exit(EXIT_FAILURE);
+    }
+
     ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
 
     if (ioctl(*sk_fd, SIOCSIFFLAGS, &ifr) < 0) {
         perror("ioctl(SIOCSIFFLAGS)");
         close(*tun_fd);
         close(*sk_fd);
+        free(*tun_name);
         exit(EXIT_FAILURE);
     }
 
@@ -140,6 +191,7 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
         perror("ioctl(SIOCSIFADDR)");
         close(*tun_fd);
         close(*sk_fd);
+        free(*tun_name);
         exit(EXIT_FAILURE);
     }
 
@@ -151,10 +203,9 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
         perror("ioctl(SIOCSIFNETMASK)");
         close(*tun_fd);
         close(*sk_fd);
+        free(*tun_name);
         exit(EXIT_FAILURE);
     }
-
-#endif
 }
 
 void clean_up_all(void) {
@@ -196,6 +247,7 @@ void setup_signal_handler() {
 }
 
 void modify_route(const char *dest, const char *gateway, const char *interface, int flags, int type) {
+#ifdef __linux__
     struct {
         struct nlmsghdr nlh;
         struct rtmsg rt;
@@ -261,12 +313,85 @@ void modify_route(const char *dest, const char *gateway, const char *interface, 
     }
 
     close(sock);
+#elif __APPLE__
+     struct {
+        struct rt_msghdr hdr;
+        char buf[512];
+    } req;
+
+    memset(&req, 0, sizeof(req));
+
+    req.hdr.rtm_msglen = sizeof(struct rt_msghdr);
+    req.hdr.rtm_version = RTM_VERSION;
+    req.hdr.rtm_type = type;
+    req.hdr.rtm_flags = flags;
+    req.hdr.rtm_addrs = RTA_DST | RTA_GATEWAY | RTA_NETMASK | RTA_IFP;
+    req.hdr.rtm_pid = getpid();
+    req.hdr.rtm_seq = 1;
+
+    char dest_copy[100];
+    strncpy(dest_copy, dest, sizeof(dest_copy));
+    char *slash = strchr(dest_copy, '/');
+    if (slash) {
+        *slash = '\0';
+        req.hdr.rtm_dst_len = atoi(slash + 1);
+    } else {
+        req.hdr.rtm_dst_len = 32;
+    }
+
+    struct sockaddr_in *addr = (struct sockaddr_in *)(req.buf);
+    addr->sin_len = sizeof(struct sockaddr_in);
+    addr->sin_family = AF_INET;
+    inet_pton(AF_INET, dest_copy, &addr->sin_addr);
+    req.hdr.rtm_msglen += sizeof(struct sockaddr_in);
+
+    addr = (struct sockaddr_in *)(req.buf + req.hdr.rtm_msglen);
+    addr->sin_len = sizeof(struct sockaddr_in);
+    addr->sin_family = AF_INET;
+    inet_pton(AF_INET, gateway, &addr->sin_addr);
+    req.hdr.rtm_msglen += sizeof(struct sockaddr_in);
+
+    addr = (struct sockaddr_in *)(req.buf + req.hdr.rtm_msglen);
+    addr->sin_len = sizeof(struct sockaddr_in);
+    addr->sin_family = AF_INET;
+    addr->sin_addr.s_addr = get_netmask(req.hdr.rtm_dst_len);
+    req.hdr.rtm_msglen += sizeof(struct sockaddr_in);
+
+    struct sockaddr_dl *sdl = (struct sockaddr_dl *)(req.buf + req.hdr.rtm_msglen);
+    sdl->sdl_len = sizeof(struct sockaddr_dl);
+    sdl->sdl_family = AF_LINK;
+    sdl->sdl_nlen = strlen(interface);
+    memcpy(sdl->sdl_data, interface, sdl->sdl_nlen);
+    req.hdr.rtm_msglen += sizeof(struct sockaddr_dl);
+
+    int sock = socket(PF_ROUTE, SOCK_RAW, 0);
+    if (sock < 0) {
+        perror("socket");
+        exit(EXIT_FAILURE);
+    }
+
+    if (write(sock, &req, req.hdr.rtm_msglen) < 0) {
+        perror("write");
+        close(sock);
+        exit(EXIT_FAILURE);
+    }
+
+    close(sock);
+#endif
 }
 
 void add_route(const char *dest, const char *gateway, const char *interface) {
+#ifdef __linux__
     modify_route(dest, gateway, interface, NLM_F_REQUEST | NLM_F_CREATE, RTM_NEWROUTE);
+#elif __APPLE__
+    modify_route(dest, gateway, interface, RTF_UP | RTF_GATEWAY, RTM_ADD);
+#endif
 }
 
 void del_route(const char *dest, const char *gateway, const char *interface) {
+#ifdef __linux__
     modify_route(dest, gateway, interface, NLM_F_REQUEST, RTM_DELROUTE);
+#elif __APPLE__
+    modify_route(dest, gateway, interface, RTF_UP | RTF_GATEWAY, RTM_DELETE);
+#endif
 }
