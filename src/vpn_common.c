@@ -71,7 +71,7 @@ void get_subnet(char *input_addr, in_addr_t *subnet, int *prefix_len) {
     }
     *slash = '\0';
     *prefix_len = atoi(slash + 1);
-    if (*prefix_len < 8 || *prefix_len >= 32) {
+    if (*prefix_len < 16 || *prefix_len >= 32) {
         fprintf(stderr, "Invalid prefix length\n");
         *subnet = INADDR_NONE;
         return;
