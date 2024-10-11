@@ -50,6 +50,11 @@ void configure_context(SSL_CTX *ctx) {
         exit(EXIT_FAILURE);
     }
 
+    if (!SSL_CTX_check_private_key(ctx)) {
+        fprintf(stderr, "Private key does not match the certificate public key\n");
+        exit(EXIT_FAILURE);
+    }
+
     if (SSL_CTX_load_verify_locations(ctx, NULL, TRUSTED_DIR) <= 0) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
