@@ -9,6 +9,6 @@ if [ $# -ne 1 ]; then
 fi
 
 mkdir -p $PROJ_DIR/trusted
-cp $1 $PROJ_DIR/trusted/
+cp -f $1 $PROJ_DIR/trusted/
 
-LD_LIBRARY_PATH=$OPENSSL_LIB $C_REHASH $PROJ_DIR/trusted/
+cd $PROJ_DIR/trusted/ && LD_LIBRARY_PATH=$OPENSSL_LIB $C_REHASH .
