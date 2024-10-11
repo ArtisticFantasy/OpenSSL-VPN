@@ -153,7 +153,7 @@ int main(int argc, char **argv) {
     timer.it_interval.tv_usec = 0;
     setitimer(ITIMER_REAL, &timer, NULL);
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Connection failed");
+        perror("Connecting to server failed");
         close(sock);
         SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
@@ -168,19 +168,18 @@ int main(int argc, char **argv) {
     SSL_set_fd(ssl, sock);
 
     if (SSL_connect(ssl) <= 0 || SSL_get_verify_result(ssl) != X509_V_OK) {
-        fprintf(stderr, "Connection rejected by server\n");
+        fprintf(stderr, "Cannot verify server's identity, connection closed.\n");
         SSL_shutdown(ssl);
         SSL_free(ssl);
         close(sock);
         SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
-    } else {
-        printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
     }
 
     char buf[1000];
     int bytes = SSL_read(ssl, buf, 500);
     if (bytes > 0) {
+        printf("Connected with %s encryption.\n", SSL_get_cipher(ssl));
         buf[bytes] = 0;
         char *slash = strchr(buf, '/');
         if (!slash) {
@@ -210,11 +209,11 @@ int main(int argc, char **argv) {
         add_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
         route_added = 1;
     } else {
+        fprintf(stderr, "Connection rejected by server.\n");
         SSL_shutdown(ssl);
         SSL_free(ssl);
         close(sock);
         SSL_CTX_free(ctx);
-        ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
 
@@ -230,7 +229,7 @@ int main(int argc, char **argv) {
     pthread_join(keep_alive_thread, NULL);
     
 
-    fprintf(stderr, "Connection closed by server\n");
+    fprintf(stderr, "Connection closed by server.\n");
 
     // Do the cleanup
     SSL_shutdown(ssl);

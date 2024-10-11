@@ -265,7 +265,7 @@ int main(int argc, char **argv) {
     get_subnet(argv[1], &subnet_addr, &prefix_len);
 
     if (subnet_addr == INADDR_NONE) {
-        fprintf(stderr, "Invalid subnet address\n");
+        fprintf(stderr, "Invalid subnet address.\n");
         exit(EXIT_FAILURE);
     }
     
@@ -275,7 +275,7 @@ int main(int argc, char **argv) {
         char cur_valid_prefix[100];
         strcpy(cur_valid_prefix, valid_prefixes[i]);
         char *slash = strchr(cur_valid_prefix, '/');
-        assert(slash && "Valid prefix is broken");
+        assert(slash && "Valid prefix is broken.");
         *slash = '\0';
         subnet_addr_tmp = inet_addr(cur_valid_prefix);
         prefix_len_tmp = atoi(slash + 1);
@@ -283,7 +283,7 @@ int main(int argc, char **argv) {
             break;
         }
         if (i == 2) {
-            fprintf(stderr, "Not a local subnet\n");
+            fprintf(stderr, "Not a local subnet.\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -353,7 +353,7 @@ int main(int argc, char **argv) {
         SSL_set_fd(ssl, client);
 
         if (SSL_accept(ssl) <= 0 || SSL_get_verify_result(ssl) != X509_V_OK) {
-            fprintf(stderr, "Invalid connection from %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+            fprintf(stderr, "Invalid connection from %s:%d.\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
         } else {
             // Assign IP for client
             int host_id = get_ip();
@@ -370,7 +370,11 @@ int main(int argc, char **argv) {
 
                 printf("Received connection from %s:%d, assigned as %s\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), ip_str);
 
-                SSL_write(ssl, ip_str, strlen(ip_str));
+                if (SSL_write(ssl, ip_str, strlen(ip_str)) <= 0) {
+                    fprintf(stderr, "Maybe the client cannot verify your identity, connection closed.\n");
+                    reset_conn(host_id);
+                    continue;
+                }
                 pthread_create(&threads[host_id], NULL, (void*)listen_and_deliver_packets, &host_id);
             }
             else {
