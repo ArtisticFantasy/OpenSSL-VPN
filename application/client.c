@@ -142,8 +142,8 @@ int main(int argc, char **argv) {
     ssl = SSL_new(ctx);
     SSL_set_fd(ssl, sock);
 
-    if (SSL_connect(ssl) <= 0) {
-        ERR_print_errors_fp(stderr);
+    if (SSL_connect(ssl) <= 0 || SSL_get_verify_result(ssl) != X509_V_OK) {
+        fprintf(stderr, "Connection failed\n");
     } else {
         printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
     }
