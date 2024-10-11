@@ -100,6 +100,17 @@ void *keep_alive(SSL *ssl) {
     }
 }
 
+int sock;
+SSL_CTX *ctx;
+SSL *ssl;
+
+void handle_alarm(int signal) {
+    fprintf(stderr, "Time expired when connecting server!\n");
+    close(sock);
+    SSL_CTX_free(ctx);
+    exit(EXIT_FAILURE);
+}
+
 int main(int argc, char **argv) {
 
     if (argc < 2) {
@@ -112,10 +123,7 @@ int main(int argc, char **argv) {
     setup_signal_handler();
     atexit(clean_up_all);
 
-    int sock;
     struct sockaddr_in server_addr;
-    SSL_CTX *ctx;
-    SSL *ssl;
 
     init_openssl();
     ctx = create_client_context();
@@ -124,20 +132,37 @@ int main(int argc, char **argv) {
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("Unable to create socket");
+        SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
     }
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
     if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
-        perror("Invalid address/ Address not supported");
+        perror("Invalid address / Address not supported");
+        close(sock);
+        SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
     }
 
+    signal(SIGALRM, handle_alarm);
+    struct itimerval timer;
+    timer.it_value.tv_sec = 5;
+    timer.it_value.tv_usec = 0;
+    timer.it_interval.tv_sec = 0;
+    timer.it_interval.tv_usec = 0;
+    setitimer(ITIMER_REAL, &timer, NULL);
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Connection failed");
+        close(sock);
+        SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
     }
+    timer.it_value.tv_sec = 0;
+    timer.it_value.tv_usec = 0;
+    timer.it_interval.tv_sec = 0;
+    timer.it_interval.tv_usec = 0;
+    setitimer(ITIMER_REAL, &timer, NULL);
 
     ssl = SSL_new(ctx);
     SSL_set_fd(ssl, sock);
@@ -147,6 +172,7 @@ int main(int argc, char **argv) {
         SSL_shutdown(ssl);
         SSL_free(ssl);
         close(sock);
+        SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
     } else {
         printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
@@ -162,6 +188,7 @@ int main(int argc, char **argv) {
             SSL_shutdown(ssl);
             SSL_free(ssl);
             close(sock);
+            SSL_CTX_free(ctx);
             exit(EXIT_FAILURE);
         }
         *slash = '\0';
@@ -171,6 +198,7 @@ int main(int argc, char **argv) {
             SSL_shutdown(ssl);
             SSL_free(ssl);
             close(sock);
+            SSL_CTX_free(ctx);
             exit(EXIT_FAILURE);
         }
         prefix_len = atoi(slash + 1);
@@ -185,6 +213,7 @@ int main(int argc, char **argv) {
         SSL_shutdown(ssl);
         SSL_free(ssl);
         close(sock);
+        SSL_CTX_free(ctx);
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }

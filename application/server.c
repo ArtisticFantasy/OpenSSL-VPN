@@ -69,7 +69,7 @@ int get_ip() {
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
 
-    for (int i = 2; i < (1 << 32 - prefix_len); i++) {
+    for (int i = 2; i < (1 << (32 - prefix_len)); i++) {
         if (!used_ips[i]) {
             return i;
         }
@@ -174,7 +174,7 @@ void *clean_timeout_conns() {
     while (1) {
         sleep(500);
         clock_gettime(CLOCK_MONOTONIC, &now);
-        for (int i = 2; i < (1 << 32 - prefix_len); i++) {
+        for (int i = 2; i < (1 << (32 - prefix_len)); i++) {
             if (used_ips[i] && now.tv_sec - last_active[i].tv_sec >= 2000) {
                 pthread_cancel(threads[i]);
                 pthread_join(threads[i], NULL);
@@ -312,6 +312,11 @@ int main(int argc, char **argv) {
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
         perror("Unable to create socket");
+        exit(EXIT_FAILURE);
+    }
+
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
+        perror("Unable to set socket option");
         exit(EXIT_FAILURE);
     }
 

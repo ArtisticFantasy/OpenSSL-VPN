@@ -1,5 +1,6 @@
 #!/bin/bash
 PROJ_DIR=$(realpath $(dirname $0))
+OS_TYPE=$(uname)
 
 # Build openssl
 if [ ! -d $PROJ_DIR/tools/openssl ]; then
@@ -15,7 +16,11 @@ if [ ! -d $PROJ_DIR/tools/openssl ]; then
     mkdir build
     cd build
     ../Configure --prefix=$PROJ_DIR/tools/openssl --openssldir=$PROJ_DIR/tools/openssl || exit 1
-    make -j`nproc` || exit 1
+    if [ "$OS_TYPE" == "Linux" ]; then
+        make -j`nproc` || exit 1
+    elif [ "$OS_TYPE" == "Darwin" ]; then
+        make -j`sysctl -n hw.ncpu` || exit 1
+    fi
     make install || exit 1
     rm -rf $PROJ_DIR/openssl
 fi
@@ -39,4 +44,9 @@ rm -rf build
 mkdir build
 cd build
 cmake .. || exit 1
-make -j`nproc` || exit 1
+
+if [ "$OS_TYPE" == "Linux" ]; then
+    make -j`nproc` || exit 1
+elif [ "$OS_TYPE" == "Darwin" ]; then
+    make -j`sysctl -n hw.ncpu` || exit 1
+fi
