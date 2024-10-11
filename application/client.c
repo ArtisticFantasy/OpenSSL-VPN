@@ -143,7 +143,11 @@ int main(int argc, char **argv) {
     SSL_set_fd(ssl, sock);
 
     if (SSL_connect(ssl) <= 0 || SSL_get_verify_result(ssl) != X509_V_OK) {
-        fprintf(stderr, "Connection failed\n");
+        fprintf(stderr, "Connection rejected by server\n");
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        close(sock);
+        exit(EXIT_FAILURE);
     } else {
         printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
     }

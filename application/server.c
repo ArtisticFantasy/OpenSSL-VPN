@@ -348,7 +348,7 @@ int main(int argc, char **argv) {
         SSL_set_fd(ssl, client);
 
         if (SSL_accept(ssl) <= 0 || SSL_get_verify_result(ssl) != X509_V_OK) {
-            fprintf(stderr, "Invalid connection\n");
+            fprintf(stderr, "Invalid connection from %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
         } else {
             // Assign IP for client
             int host_id = get_ip();
