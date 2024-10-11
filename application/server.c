@@ -1,7 +1,17 @@
-#include "vpn_common.h"
+#include "common/common.h"
+#include "common/signal.h"
+#include "common/application.h"
+#include "network/subnet.h"
+#include "network/setup.h"
+#include "utils/ssl.h"
 
 #define MAX_HOSTS 1<<16
 
+int tun_fd = -1, sk_fd = -1;
+char *vpn_tun_name;
+int route_added = 0;
+in_addr_t ip_addr;
+char subnet_str[100];
 in_addr_t subnet_addr;
 int prefix_len;
 
@@ -14,11 +24,33 @@ SSL *ssl_ctxs[MAX_HOSTS] = {0};
 pthread_t threads[MAX_HOSTS] = {0};
 struct timespec last_active[MAX_HOSTS] = {0};
 
-int check_in_subnet(in_addr_t addr) {
-    return (addr & htonl(((0xffffffff) << (32 - prefix_len)))) == subnet_addr;
+void clean_up_all(void) {
+    if (route_added && vpn_tun_name) {
+        del_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
+        route_added = 0;
+    }
+    if (tun_fd != -1) {
+        close(tun_fd);
+        tun_fd = -1;
+        if (vpn_tun_name) {
+            free(vpn_tun_name);
+            vpn_tun_name = NULL;
+        }
+    }
+
+    if (sk_fd != -1) {
+        close(sk_fd);
+        sk_fd = -1;
+    }
+    cleanup_openssl();
 }
 
 void reset_conn(int host_id) {
+    in_addr_t host_addr = subnet_addr + htonl(host_id);
+    printf("Close connection with %s, ", 
+        inet_ntoa(*(struct in_addr *)&real_iptable[host_id]));
+    printf("assigned IPv4 address: %s/%d\n", 
+        inet_ntoa(*(struct in_addr *)&host_addr), prefix_len);
     if (used_ips[host_id] == 0) {
         return;
     }
@@ -61,7 +93,6 @@ int get_ip() {
 void *listen_and_deliver_packets(int *hostid) {
     int host_id = *hostid;
     char buf[70000];
-    in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
     while (1) {
         int bytes = SSL_read(ssl_ctxs[host_id], buf, sizeof(buf));
 
@@ -94,6 +125,10 @@ void *listen_and_deliver_packets(int *hostid) {
             continue;
         }
 
+        if (!check_in_subnet(iph->daddr, subnet_addr, prefix_len)) {
+            continue;
+        }
+
         int target_host_id = ntohl(iph->daddr - subnet_addr);
 #elif __APPLE__
         if (bytes < sizeof(struct ip)) {
@@ -108,6 +143,10 @@ void *listen_and_deliver_packets(int *hostid) {
 
         if (iph->ip_dst.s_addr == ip_addr) {
             mac_write_tun(tun_fd, buf, bytes);
+            continue;
+        }
+
+        if(!check_in_subnet(iph->ip_dst.s_addr, subnet_addr, prefix_len)) {
             continue;
         }
 
@@ -147,7 +186,6 @@ void *clean_timeout_conns() {
 
 void *tun_to_ssl(void) {
     char buf[70000];
-    in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
     while (1) {
 #ifdef __linux__
         int bytes = read(tun_fd, buf, sizeof(buf));
@@ -241,7 +279,7 @@ int main(int argc, char **argv) {
         *slash = '\0';
         subnet_addr_tmp = inet_addr(cur_valid_prefix);
         prefix_len_tmp = atoi(slash + 1);
-        if ((subnet_addr & get_netmask(prefix_len_tmp)) == subnet_addr_tmp && prefix_len >= prefix_len_tmp) {
+        if (check_in_subnet(subnet_addr, subnet_addr_tmp, prefix_len_tmp) && prefix_len >= prefix_len_tmp) {
             break;
         }
         if (i == 2) {
@@ -324,6 +362,8 @@ int main(int argc, char **argv) {
                 real_iptable[host_id] = addr.sin_addr.s_addr;
                 ssl_ctxs[host_id] = ssl;
                 clients[host_id] = client;
+
+                printf("Received connection from %s:%d, assigned as %s\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), ip_str);
 
                 SSL_write(ssl, ip_str, strlen(ip_str));
                 pthread_create(&threads[host_id], NULL, (void*)listen_and_deliver_packets, &host_id);

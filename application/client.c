@@ -1,6 +1,37 @@
-#include "vpn_common.h"
+#include "common/common.h"
+#include "common/signal.h"
+#include "common/application.h"
+#include "network/subnet.h"
+#include "network/setup.h"
+#include "utils/ssl.h"
 
+int tun_fd = -1, sk_fd = -1;
+char *vpn_tun_name;
+int route_added = 0;
+in_addr_t ip_addr;
+char subnet_str[100];
 int prefix_len;
+
+void clean_up_all(void) {
+    if (route_added && vpn_tun_name) {
+        del_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
+        route_added = 0;
+    }
+    if (tun_fd != -1) {
+        close(tun_fd);
+        tun_fd = -1;
+        if (vpn_tun_name) {
+            free(vpn_tun_name);
+            vpn_tun_name = NULL;
+        }
+    }
+
+    if (sk_fd != -1) {
+        close(sk_fd);
+        sk_fd = -1;
+    }
+    cleanup_openssl();
+}
 
 void *tun_to_ssl(SSL *ssl) {
     char buf[70000];
@@ -140,7 +171,7 @@ int main(int argc, char **argv) {
         }
         prefix_len = atoi(slash + 1);
         *slash = '/';
-        printf("Assigned ipv4 address by server: %s\n", buf);
+        printf("Assigned IPv4 address by server: %s\n", buf);
         setup_tun(&vpn_tun_name, ip_addr, prefix_len, &tun_fd, &sk_fd);
         in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
         sprintf(subnet_str, "%s/%d", inet_ntoa(*(struct in_addr *)&subnet_addr), prefix_len);

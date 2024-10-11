@@ -2,14 +2,14 @@
 PROJ_DIR=$(realpath $(dirname $0))
 
 # Build openssl
-cd $PROJ_DIR
-if [ ! -d $PROJ_DIR/openssl ]; then
-    wget https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz
-    tar -zxvf openssl-3.3.2.tar.gz
-    mv openssl-3.3.2 openssl
-fi
-
 if [ ! -d $PROJ_DIR/tools/openssl ]; then
+    if [ ! -d $PROJ_DIR/openssl ]; then
+        cd $PROJ_DIR
+        wget https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz || exit 1
+        tar -zxvf openssl-3.3.2.tar.gz || exit 1
+        mv openssl-3.3.2 openssl || exit 1
+        rm -rf openssl-3.3.2.tar.gz
+    fi
     cd $PROJ_DIR/openssl
     rm -rf build
     mkdir build
@@ -17,6 +17,7 @@ if [ ! -d $PROJ_DIR/tools/openssl ]; then
     ../Configure --prefix=$PROJ_DIR/tools/openssl --openssldir=$PROJ_DIR/tools/openssl || exit 1
     make -j`nproc` || exit 1
     make install || exit 1
+    rm -rf $PROJ_DIR/openssl
 fi
 
 OPENSSL=$PROJ_DIR/tools/openssl/bin/openssl

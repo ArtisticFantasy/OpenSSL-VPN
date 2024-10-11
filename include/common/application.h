@@ -1,0 +1,7 @@
+#ifndef VPN_APPLICATION_H
+#define VPN_APPLICATION_H
+
+#define PORT 54433
+
+#endif
+/* VPN_APPLICATION_H */
