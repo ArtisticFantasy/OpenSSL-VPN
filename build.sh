@@ -23,14 +23,15 @@ fi
 OPENSSL=$PROJ_DIR/tools/openssl/bin/openssl
 OPENSSL_LIB=$PROJ_DIR/tools/openssl/lib64:$PROJ_DIR/tools/openssl/lib
 
-# Generate certificate files
-rm -rf $PROJ_DIR/certs
-mkdir $PROJ_DIR/certs
-cd $PROJ_DIR/certs
+# Make trusted directory
+if [ ! -d $PROJ_DIR/trusted ]; then
+    mkdir $PROJ_DIR/trusted
+fi
 
-yes "" | LD_LIBRARY_PATH=$OPENSSL_LIB $OPENSSL genpkey -algorithm RSA -out host.key -pkeyopt rsa_keygen_bits:2048
-yes "" | LD_LIBRARY_PATH=$OPENSSL_LIB $OPENSSL req -new -key host.key -out host.csr
-yes "" | LD_LIBRARY_PATH=$OPENSSL_LIB $OPENSSL x509 -req -in host.csr -CA $PROJ_DIR/ca_file/ca.crt -CAkey $PROJ_DIR/ca_file/ca.key -CAcreateserial -out host.crt -days 365 -sha256
+# Generate certificate files
+if [ ! -d $PROJ_DIR/certs ]; then
+    $PROJ_DIR/gen_certs.sh
+fi
 
 # Build sources
 cd $PROJ_DIR

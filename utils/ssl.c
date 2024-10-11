@@ -1,6 +1,6 @@
 #include "utils/ssl.h"
 
-#define CA_CERT_FILE CERT_PATH "/../ca_file/ca.crt"
+#define TRUSTED_DIR CERT_PATH "/../trusted"
 #define CERT_FILE CERT_PATH "/host.crt"
 #define KEY_FILE CERT_PATH "/host.key"
 
@@ -50,7 +50,7 @@ void configure_context(SSL_CTX *ctx) {
         exit(EXIT_FAILURE);
     }
 
-    if (SSL_CTX_load_verify_locations(ctx, CA_CERT_FILE, NULL) <= 0) {
+    if (SSL_CTX_load_verify_locations(ctx, NULL, TRUSTED_DIR) <= 0) {
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
