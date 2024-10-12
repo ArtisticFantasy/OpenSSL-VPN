@@ -5,6 +5,8 @@
 #include "network/setup.h"
 #include "utils/ssl.h"
 
+#define CLIENT_KEEP_ALIVE_INTERVAL 100
+
 int tun_fd = -1, sk_fd = -1;
 char *vpn_tun_name;
 int route_added = 0;
@@ -95,7 +97,7 @@ void *ssl_to_tun(SSL *ssl) {
 
 void *keep_alive(SSL *ssl) {
     while (1) {
-        sleep(200);
+        sleep(CLIENT_KEEP_ALIVE_INTERVAL);
         SSL_write(ssl, "hello", strlen("hello"));
     }
 }

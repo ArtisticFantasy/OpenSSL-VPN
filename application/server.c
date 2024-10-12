@@ -6,6 +6,8 @@
 #include "utils/ssl.h"
 
 #define MAX_HOSTS 1<<16
+#define CLIENT_TIMEOUT 500
+#define CHECK_CLIENT_ALIVE_INTERVAL 200
 
 int tun_fd = -1, sk_fd = -1;
 char *vpn_tun_name;
@@ -73,7 +75,7 @@ int get_ip() {
         if (!used_ips[i]) {
             return i;
         }
-        else if (now.tv_sec - last_active[i].tv_sec >= 2000) {
+        else if (now.tv_sec - last_active[i].tv_sec >= CLIENT_TIMEOUT) {
             pthread_cancel(threads[i]);
             pthread_join(threads[i], NULL);
             reset_conn(i);
@@ -172,10 +174,10 @@ void *listen_and_deliver_packets(int *hostid) {
 void *clean_timeout_conns() {
     struct timespec now;
     while (1) {
-        sleep(500);
+        sleep(CHECK_CLIENT_ALIVE_INTERVAL);
         clock_gettime(CLOCK_MONOTONIC, &now);
         for (int i = 2; i < (1 << (32 - prefix_len)); i++) {
-            if (used_ips[i] && now.tv_sec - last_active[i].tv_sec >= 2000) {
+            if (used_ips[i] && now.tv_sec - last_active[i].tv_sec >= CLIENT_TIMEOUT) {
                 pthread_cancel(threads[i]);
                 pthread_join(threads[i], NULL);
                 reset_conn(i);
