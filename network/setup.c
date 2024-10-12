@@ -1,4 +1,5 @@
 #include "common/common.h"
+#include "common/application.h"
 #include "network/setup.h"
 #include "network/subnet.h"
 
@@ -7,7 +8,7 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
 #ifdef __linux__
     *tun_fd = open("/dev/net/tun", O_RDWR);
     if (*tun_fd < 0) {
-        perror("Opening /dev/net/tun");
+        application_log(stderr, "Open /dev/net/tun failed.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -16,14 +17,14 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
     ifr.ifr_name[0] = '\0';
 
     if (ioctl(*tun_fd, TUNSETIFF, (void *)&ifr) < 0) {
-        perror("ioctl(TUNSETIFF)");
+        application_log(stderr, "ioctl(TUNSETIFF) failed.\n");
         close(*tun_fd);
         exit(EXIT_FAILURE);
     }
 #elif __APPLE__
     *tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
     if (*tun_fd < 0) {
-        perror("Opening utun device");
+        application_log(stderr, "Open utun device failed.\n");
         exit(EXIT_FAILURE);
     }
     struct sockaddr_ctl addr;
@@ -32,7 +33,7 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
     strncpy(ctl_info.ctl_name, UTUN_CONTROL_NAME, MAX_KCTL_NAME);
 
     if (ioctl(*tun_fd, CTLIOCGINFO, &ctl_info) == -1) {
-        perror("ioctl(CTLIOCGINFO)");
+        application_log(stderr, "ioctl(CTLIOCGINFO) failed.\n");
         close(*tun_fd);
         exit(EXIT_FAILURE);
     }
@@ -45,14 +46,14 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
     addr.sc_unit = 0;
 
     if (connect(*tun_fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-        perror("connect");
+        application_log(stderr, "connect sysctl failed.\n");
         close(*tun_fd);
         exit(EXIT_FAILURE);
     }
 
     socklen_t utun_name_len = sizeof(ifr.ifr_name);
     if (getsockopt(*tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, ifr.ifr_name, &utun_name_len) == -1) {
-        perror("getsockopt(UTUN_OPT_IFNAME)");
+        application_log(stderr, "getsockopt(UTUN_OPT_IFNAME) failed.\n");
         close(*tun_fd);
         exit(EXIT_FAILURE);
     }
@@ -64,14 +65,14 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
     *sk_fd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 
     if (*sk_fd < 0) {
-        perror("Unable to create socket");
+        application_log(stderr, "Unable to create socket binding tun.\n");
         close(*tun_fd);
         free(*tun_name);
         exit(EXIT_FAILURE);
     }
 
     if (ioctl(*sk_fd, SIOCGIFFLAGS, &ifr) < 0) {
-        perror("ioctl(SIOCGIFFLAGS)");
+        application_log(stderr, "ioctl(SIOCGIFFLAGS) failed.\n");
         close(*tun_fd);
         close(*sk_fd);
         free(*tun_name);
@@ -81,7 +82,7 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
     ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
 
     if (ioctl(*sk_fd, SIOCSIFFLAGS, &ifr) < 0) {
-        perror("ioctl(SIOCSIFFLAGS)");
+        application_log(stderr, "ioctl(SIOCSIFFLAGS) failed.\n");
         close(*tun_fd);
         close(*sk_fd);
         free(*tun_name);
@@ -96,7 +97,7 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
     memcpy(&ifr.ifr_addr, &tun_addr, sizeof(struct sockaddr_in));
 
     if (ioctl(*sk_fd, SIOCSIFADDR, &ifr) < 0) {
-        perror("ioctl(SIOCSIFADDR)");
+        application_log(stderr, "ioctl(SIOCSIFADDR) failed.\n");
         close(*tun_fd);
         close(*sk_fd);
         free(*tun_name);
@@ -108,7 +109,7 @@ void setup_tun(char **tun_name, in_addr_t ip_addr, int prefix_len, int *tun_fd, 
     memcpy(&ifr.ifr_addr, &tun_addr, sizeof(struct sockaddr_in));
 
     if (ioctl(*sk_fd, SIOCSIFNETMASK, &ifr) < 0) {
-        perror("ioctl(SIOCSIFNETMASK)");
+        application_log(stderr, "ioctl(SIOCSIFNETMASK) failed.\n");
         close(*tun_fd);
         close(*sk_fd);
         free(*tun_name);
@@ -168,7 +169,7 @@ void modify_route(const char *dest, const char *gateway, const char *interface, 
 
     int sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
     if (sock < 0) {
-        perror("socket");
+        application_log(stderr, "create netlink socket failed.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -177,7 +178,7 @@ void modify_route(const char *dest, const char *gateway, const char *interface, 
     sa.nl_family = AF_NETLINK;
 
     if (sendto(sock, &req, req.nlh.nlmsg_len, 0, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
-        perror("sendto");
+        application_log(stderr, "sendto netlink socket failed.\n");
         close(sock);
         exit(EXIT_FAILURE);
     }
@@ -223,12 +224,12 @@ void modify_route(const char *dest, const char *gateway, const char *interface, 
 
     int sock = socket(AF_ROUTE, SOCK_RAW, 0);
     if (sock < 0) {
-        perror("socket");
+        application_log(stderr, "create route socket failed.\n");
         exit(EXIT_FAILURE);
     }
 
     if (send(sock, &req, sizeof(req), MSG_NOSIGNAL) < 0) {
-        perror("send");
+        application_log(stderr, "send to route failed.\n");
         close(sock);
         exit(EXIT_FAILURE);
     }

@@ -1,5 +1,6 @@
 #include "common/common.h"
 #include "common/signal.h"
+#include "common/application.h"
 
 void handle_signal(int signal) {
     if (signal == SIGINT) {
@@ -14,7 +15,7 @@ void setup_signal_handler() {
     sa.sa_flags = 0;
 
     if (sigaction(SIGINT, &sa, NULL) == -1) {
-        perror("sigaction");
+        application_log(stderr, "sigaction failed.\n");
         exit(EXIT_FAILURE);
     }
 }

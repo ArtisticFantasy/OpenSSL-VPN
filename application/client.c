@@ -114,7 +114,7 @@ int main(int argc, char **argv) {
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        application_log(stderr, "Unable to create socket");
+        application_log(stderr, "Unable to create socket.\n");
         SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
     }
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
     if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
-        application_log(stderr, "Invalid address / Address not supported");
+        application_log(stderr, "Invalid address / Address not supported.\n");
         close(sock);
         SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
     timer.it_interval.tv_usec = 0;
     setitimer(ITIMER_REAL, &timer, NULL);
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        application_log(stderr, "Connecting to server failed");
+        application_log(stderr, "Connecting to server failed.\n");
         close(sock);
         SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);

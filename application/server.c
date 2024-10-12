@@ -284,7 +284,7 @@ int main(int argc, char **argv) {
     real_ports[1] = PORT;
     ip_addr = subnet_addr + htonl(1);
 
-    application_log(stdout, "Server IP: %s/%d\n", inet_ntoa(*(struct in_addr *)&ip_addr), prefix_len);
+    application_log(stdout, "Server's IPv4 address in VPN: %s/%d\n", inet_ntoa(*(struct in_addr *)&ip_addr), prefix_len);
 
     setup_tun(&vpn_tun_name, ip_addr, prefix_len, &tun_fd, &sk_fd);
     sprintf(subnet_str, "%s/%d", inet_ntoa(*(struct in_addr *)&subnet_addr), prefix_len);
@@ -302,12 +302,12 @@ int main(int argc, char **argv) {
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        application_log(stderr, "Unable to create socket");
+        application_log(stderr, "Unable to create socket.\n");
         exit(EXIT_FAILURE);
     }
 
     if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
-        application_log(stderr, "Unable to set socket option");
+        application_log(stderr, "Unable to set socket option.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -316,12 +316,12 @@ int main(int argc, char **argv) {
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        application_log(stderr, "Unable to bind socket");
+        application_log(stderr, "Unable to bind socket.\n");
         exit(EXIT_FAILURE);
     }
 
     if (listen(sock, 1) < 0) {
-        application_log(stderr, "Unable to listen on port");
+        application_log(stderr, "Unable to listen on port.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -336,7 +336,7 @@ int main(int argc, char **argv) {
 
         int client = accept(sock, (struct sockaddr*)&addr, &len);
         if (client < 0) {
-            application_log(stderr, "Unable to accept");
+            application_log(stderr, "Unable to accept connection from client.\n");
             exit(EXIT_FAILURE);
         }
         

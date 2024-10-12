@@ -1,4 +1,5 @@
 #include "utils/ssl.h"
+#include "common/application.h"
 
 #define TRUSTED_DIR CERT_PATH "/../trusted"
 #define CERT_FILE CERT_PATH "/host.crt"
@@ -6,7 +7,7 @@
 
 void init_openssl(void) {
     SSL_load_error_strings();
-    OpenSSL_add_ssl_algorithms();
+    OpenSSL_add_all_algorithms();
 }
 
 SSL_CTX *create_server_context(void) {
@@ -16,7 +17,7 @@ SSL_CTX *create_server_context(void) {
     method = SSLv23_server_method();
     ctx = SSL_CTX_new(method);
     if (!ctx) {
-        perror("Unable to create SSL context");
+        application_log(stderr, "Unable to create SSL context.\n");
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
@@ -31,7 +32,7 @@ SSL_CTX *create_client_context(void) {
     method = SSLv23_client_method();
     ctx = SSL_CTX_new(method);
     if (!ctx) {
-        perror("Unable to create SSL context");
+        application_log(stderr, "Unable to create SSL context.\n");
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     }
@@ -51,7 +52,7 @@ void configure_context(SSL_CTX *ctx) {
     }
 
     if (!SSL_CTX_check_private_key(ctx)) {
-        fprintf(stderr, "Private key does not match the certificate public key\n");
+        application_log(stderr, "Private key does not match the certificate public key.\n");
         exit(EXIT_FAILURE);
     }
 
