@@ -21,6 +21,7 @@ char *valid_prefixes[3] = {"192.168.0.0/16", "172.16.0.0/12", "10.0.0.0/8"};
 
 int used_ips[MAX_HOSTS] = {0};
 in_addr_t real_iptable[MAX_HOSTS] = {0};
+uint16_t real_ports[MAX_HOSTS] = {0};
 int clients[MAX_HOSTS] = {0};
 SSL *ssl_ctxs[MAX_HOSTS] = {0};
 pthread_t threads[MAX_HOSTS] = {0};
@@ -49,8 +50,8 @@ void clean_up_all(void) {
 
 void reset_conn(int host_id) {
     in_addr_t host_addr = subnet_addr + htonl(host_id);
-    printf("Close connection with %s, ", 
-        inet_ntoa(*(struct in_addr *)&real_iptable[host_id]));
+    application_log(stdout, "Close connection with %s:%d, ", 
+        inet_ntoa(*(struct in_addr *)&real_iptable[host_id]), real_ports[host_id]);
     printf("assigned IPv4 address: %s/%d\n", 
         inet_ntoa(*(struct in_addr *)&host_addr), prefix_len);
     if (used_ips[host_id] == 0) {
@@ -58,6 +59,7 @@ void reset_conn(int host_id) {
     }
     used_ips[host_id] = 0;
     real_iptable[host_id] = 0;
+    real_ports[host_id] = 0;
     SSL_shutdown(ssl_ctxs[host_id]);
     SSL_free(ssl_ctxs[host_id]);
     close(clients[host_id]);
@@ -267,7 +269,7 @@ int main(int argc, char **argv) {
     get_subnet(argv[1], &subnet_addr, &prefix_len);
 
     if (subnet_addr == INADDR_NONE) {
-        fprintf(stderr, "Invalid subnet address.\n");
+        application_log(stderr, "Invalid subnet address.\n");
         exit(EXIT_FAILURE);
     }
     
@@ -285,7 +287,7 @@ int main(int argc, char **argv) {
             break;
         }
         if (i == 2) {
-            fprintf(stderr, "Not a local subnet.\n");
+            application_log(stderr, "Not a local subnet.\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -293,9 +295,10 @@ int main(int argc, char **argv) {
     // Server ip
     used_ips[1] = 1;
     real_iptable[1] = inet_addr("127.0.0.1");
+    real_ports[1] = PORT;
     ip_addr = subnet_addr + htonl(1);
 
-    printf("Server IP: %s/%d\n", inet_ntoa(*(struct in_addr *)&ip_addr), prefix_len);
+    application_log(stdout, "Server IP: %s/%d\n", inet_ntoa(*(struct in_addr *)&ip_addr), prefix_len);
 
     setup_tun(&vpn_tun_name, ip_addr, prefix_len, &tun_fd, &sk_fd);
     sprintf(subnet_str, "%s/%d", inet_ntoa(*(struct in_addr *)&subnet_addr), prefix_len);
@@ -313,12 +316,12 @@ int main(int argc, char **argv) {
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        perror("Unable to create socket");
+        application_log(stderr, "Unable to create socket");
         exit(EXIT_FAILURE);
     }
 
     if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
-        perror("Unable to set socket option");
+        application_log(stderr, "Unable to set socket option");
         exit(EXIT_FAILURE);
     }
 
@@ -327,12 +330,12 @@ int main(int argc, char **argv) {
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("Unable to bind");
+        application_log(stderr, "Unable to bind socket");
         exit(EXIT_FAILURE);
     }
 
     if (listen(sock, 1) < 0) {
-        perror("Unable to listen");
+        application_log(stderr, "Unable to listen on port");
         exit(EXIT_FAILURE);
     }
 
@@ -347,7 +350,7 @@ int main(int argc, char **argv) {
 
         int client = accept(sock, (struct sockaddr*)&addr, &len);
         if (client < 0) {
-            perror("Unable to accept");
+            application_log(stderr, "Unable to accept");
             exit(EXIT_FAILURE);
         }
         
@@ -355,7 +358,7 @@ int main(int argc, char **argv) {
         SSL_set_fd(ssl, client);
 
         if (SSL_accept(ssl) <= 0 || SSL_get_verify_result(ssl) != X509_V_OK) {
-            fprintf(stderr, "Invalid connection from %s:%d.\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+            application_log(stderr, "Invalid connection from %s:%d.\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
         } else {
             // Assign IP for client
             int host_id = get_ip();
@@ -367,13 +370,14 @@ int main(int argc, char **argv) {
                 clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
                 used_ips[host_id] = 1;
                 real_iptable[host_id] = addr.sin_addr.s_addr;
+                real_ports[host_id] = ntohs(addr.sin_port);
                 ssl_ctxs[host_id] = ssl;
                 clients[host_id] = client;
 
-                printf("Received connection from %s:%d, assigned as %s\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), ip_str);
+                application_log(stdout, "Received connection from %s:%d, assigned as %s\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), ip_str);
 
                 if (SSL_write(ssl, ip_str, strlen(ip_str)) <= 0) {
-                    fprintf(stderr, "Maybe the client cannot verify your identity, connection closed.\n");
+                    application_log(stderr, "Maybe the client cannot verify your identity, connection closed.\n");
                     reset_conn(host_id);
                     continue;
                 }

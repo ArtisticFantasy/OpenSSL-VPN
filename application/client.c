@@ -107,7 +107,7 @@ SSL_CTX *ctx;
 SSL *ssl;
 
 void handle_alarm(int signal) {
-    fprintf(stderr, "Time expired when connecting server!\n");
+    application_log(stderr, "Time expired when connecting server!\n");
     close(sock);
     SSL_CTX_free(ctx);
     exit(EXIT_FAILURE);
@@ -116,7 +116,7 @@ void handle_alarm(int signal) {
 int main(int argc, char **argv) {
 
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s <server_public_address>\n", argv[0]);
+        application_log(stderr, "Usage: %s <server_public_address>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        perror("Unable to create socket");
+        application_log(stderr, "Unable to create socket");
         SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
     }
@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
     if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
-        perror("Invalid address / Address not supported");
+        application_log(stderr, "Invalid address / Address not supported");
         close(sock);
         SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
     timer.it_interval.tv_usec = 0;
     setitimer(ITIMER_REAL, &timer, NULL);
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Connecting to server failed");
+        application_log(stderr, "Connecting to server failed");
         close(sock);
         SSL_CTX_free(ctx);
         exit(EXIT_FAILURE);
@@ -170,7 +170,7 @@ int main(int argc, char **argv) {
     SSL_set_fd(ssl, sock);
 
     if (SSL_connect(ssl) <= 0 || SSL_get_verify_result(ssl) != X509_V_OK) {
-        fprintf(stderr, "Cannot verify server's identity, connection closed.\n");
+        application_log(stderr, "Cannot verify server's identity, connection closed.\n");
         SSL_shutdown(ssl);
         SSL_free(ssl);
         close(sock);
@@ -181,11 +181,11 @@ int main(int argc, char **argv) {
     char buf[1000];
     int bytes = SSL_read(ssl, buf, 500);
     if (bytes > 0) {
-        printf("Connected with %s encryption.\n", SSL_get_cipher(ssl));
+        application_log(stdout, "Connected with %s encryption.\n", SSL_get_cipher(ssl));
         buf[bytes] = 0;
         char *slash = strchr(buf, '/');
         if (!slash) {
-            fprintf(stderr, "Address received from server is broken\n");
+            application_log(stderr, "Address received from server is broken\n");
             SSL_shutdown(ssl);
             SSL_free(ssl);
             close(sock);
@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
         *slash = '\0';
         ip_addr = inet_addr(buf);
         if (ip_addr == INADDR_NONE) {
-            fprintf(stderr, "Address received from server is broken\n");
+            application_log(stderr, "Address received from server is broken\n");
             SSL_shutdown(ssl);
             SSL_free(ssl);
             close(sock);
@@ -204,14 +204,14 @@ int main(int argc, char **argv) {
         }
         prefix_len = atoi(slash + 1);
         *slash = '/';
-        printf("Assigned IPv4 address by server: %s\n", buf);
+        application_log(stdout, "Assigned IPv4 address by server: %s\n", buf);
         setup_tun(&vpn_tun_name, ip_addr, prefix_len, &tun_fd, &sk_fd);
         in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
         sprintf(subnet_str, "%s/%d", inet_ntoa(*(struct in_addr *)&subnet_addr), prefix_len);
         add_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
         route_added = 1;
     } else {
-        fprintf(stderr, "Connection rejected by server.\n");
+        application_log(stderr, "Connection rejected by server.\n");
         SSL_shutdown(ssl);
         SSL_free(ssl);
         close(sock);
@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
     pthread_join(keep_alive_thread, NULL);
     
 
-    fprintf(stderr, "Connection closed by server.\n");
+    application_log(stderr, "Connection closed by server.\n");
 
     // Do the cleanup
     SSL_shutdown(ssl);
