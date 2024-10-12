@@ -27,7 +27,7 @@ vpn_server处设有源地址验证机制，防止子网内部伪造源地址
 ## 编译
 
 ```
-./build.sh
+./scripts/build.sh
 ```
 
 ## 使用
@@ -37,13 +37,13 @@ vpn_server处设有源地址验证机制，防止子网内部伪造源地址
 1.检查项目目录下```certs/```中是否存在```host.key```和```host.crt```文件，如果没有，则执行
 
 ```
-./gen_certs.sh
+./scripts/gen_certs.sh
 ```
 
-2.获取peer的自签名证书，假设为```peer.crt```，执行
+2.获取peer的自签名证书，假设为```/path/to/peer.crt```，执行
 
 ```
-./add_trusted.sh peer.crt
+./scripts/add_trusted.sh /path/to/peer.crt
 ```
 
 ### 运行

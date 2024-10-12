@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <assert.h>
+#include <sys/time.h>
 
 #endif
 /* VPN_COMMON_H */
