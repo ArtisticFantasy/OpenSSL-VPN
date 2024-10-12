@@ -22,7 +22,11 @@ vpn_server处设有源地址验证机制，防止子网内部伪造源地址
 
 ## 架构图
 
-待补充（
+![OpenSSL VPN架构](images/openssl-vpn-architecture.png)
+
+黄色箭头1到13表示client间通信的报文流向，黄色箭头1到7和红色箭头8到9表示client往server发送报文的流向（为简单起见，图中并没有包含使用VPN的应用，仅体现了内核协议栈间的通信），翻转箭头朝向即是反向通信的报文流向。实体网卡间的通信（黄色箭头5和9）均采用SSL/TLS加密。
+
+在本项目实现中，vpn_server实质上担任了client间的网关，在应用层实现路由功能。各主机均创建了一块网络层虚拟网卡tun，并修改路由表表项使目的地址在VPN子网内的报文均被定向到tun中，以供vpn_server, vpn_client监听tun流量并将劫持到的IP报文作为负载送入SSL/TLS连接中。同时，当vpn_server, vpn_client在SSL/TLS连接上收到目的地址为自己VPN内网地址的报文后，通过tun写入内核协议栈，以实现VPN内网通信。
 
 ## 编译
 
