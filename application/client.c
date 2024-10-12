@@ -14,26 +14,7 @@ in_addr_t ip_addr;
 char subnet_str[100];
 int prefix_len;
 
-void clean_up_all(void) {
-    if (route_added && vpn_tun_name) {
-        del_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
-        route_added = 0;
-    }
-    if (tun_fd != -1) {
-        close(tun_fd);
-        tun_fd = -1;
-        if (vpn_tun_name) {
-            free(vpn_tun_name);
-            vpn_tun_name = NULL;
-        }
-    }
-
-    if (sk_fd != -1) {
-        close(sk_fd);
-        sk_fd = -1;
-    }
-    cleanup_openssl();
-}
+REGISTER_CLEAN_UP
 
 void *tun_to_ssl(SSL *ssl) {
     char buf[70000];

@@ -27,32 +27,13 @@ SSL *ssl_ctxs[MAX_HOSTS] = {0};
 pthread_t threads[MAX_HOSTS] = {0};
 struct timespec last_active[MAX_HOSTS] = {0};
 
-void clean_up_all(void) {
-    if (route_added && vpn_tun_name) {
-        del_route(subnet_str, inet_ntoa(*(struct in_addr *)&ip_addr), vpn_tun_name);
-        route_added = 0;
-    }
-    if (tun_fd != -1) {
-        close(tun_fd);
-        tun_fd = -1;
-        if (vpn_tun_name) {
-            free(vpn_tun_name);
-            vpn_tun_name = NULL;
-        }
-    }
-
-    if (sk_fd != -1) {
-        close(sk_fd);
-        sk_fd = -1;
-    }
-    cleanup_openssl();
-}
+REGISTER_CLEAN_UP
 
 void reset_conn(int host_id) {
     in_addr_t host_addr = subnet_addr + htonl(host_id);
-    application_log(stdout, "Close connection with %s:%d, ", 
+    application_log(stdout, "Close connection with %s:%d ", 
         inet_ntoa(*(struct in_addr *)&real_iptable[host_id]), real_ports[host_id]);
-    printf("assigned IPv4 address: %s/%d\n", 
+    printf("(%s/%d)\n",
         inet_ntoa(*(struct in_addr *)&host_addr), prefix_len);
     if (used_ips[host_id] == 0) {
         return;
@@ -106,9 +87,14 @@ void *listen_and_deliver_packets(int *hostid) {
         }
 
         //keep alive
+        in_addr_t host_addr = subnet_addr + htonl(host_id);
         if (bytes == strlen("hello")) {
             if (strncmp(buf, "hello", strlen("hello")) == 0) {
                 clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
+                application_log(stdout, "Received keep-alive message from %s:%d ", 
+                    inet_ntoa(*(struct in_addr *)&real_iptable[host_id]), real_ports[host_id]);
+                printf("(%s/%d)\n",
+                    inet_ntoa(*(struct in_addr *)&host_addr), prefix_len);
             }
             continue;
         }
@@ -118,7 +104,7 @@ void *listen_and_deliver_packets(int *hostid) {
             continue;
         }
         struct iphdr *iph = (struct iphdr *)buf;
-        if ((iph->saddr != subnet_addr + htonl(host_id)) || (iph->daddr & get_netmask(prefix_len)) != subnet_addr) {
+        if ((iph->saddr != host_addr) || (iph->daddr & get_netmask(prefix_len)) != subnet_addr) {
             continue;
         }
 
@@ -139,7 +125,7 @@ void *listen_and_deliver_packets(int *hostid) {
             continue;
         }
         struct ip *iph = (struct ip *)buf;
-        if ((iph->ip_src.s_addr != subnet_addr + htonl(host_id)) || (iph->ip_dst.s_addr & get_netmask(prefix_len)) != subnet_addr) {
+        if ((iph->ip_src.s_addr != host_addr) || (iph->ip_dst.s_addr & get_netmask(prefix_len)) != subnet_addr) {
             continue;
         }
 
