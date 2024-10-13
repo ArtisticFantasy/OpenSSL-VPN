@@ -400,7 +400,7 @@ int main(int argc, char **argv) {
 
     while (1) {
         struct sockaddr_in addr;
-        int len = sizeof(addr);
+        socklen_t len = sizeof(addr);
         SSL *ssl;
 
         int client = accept(sock, (struct sockaddr*)&addr, &len);
