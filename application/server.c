@@ -5,10 +5,12 @@
 #include "network/setup.h"
 #include "utils/ssl.h"
 
-#define MAX_HOSTS 1<<16
 #define CLIENT_TIMEOUT 500
 #define CHECK_CLIENT_ALIVE_INTERVAL 200
 
+extern uint16_t PORT;
+extern uint16_t EXPECTED_HOST_ID;
+extern int host_type;
 int tun_fd = -1, sk_fd = -1;
 char *vpn_tun_name;
 int route_added = 0;
@@ -49,12 +51,35 @@ void reset_conn(int host_id) {
     threads[host_id] = 0;
 }
 
-int get_ip() {
+int get_ip(long desired) {
 
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
 
-    for (int i = 2; i < (1 << (32 - prefix_len)); i++) {
+    if (desired != EXPECTED_HOST_ID && desired >= 1 && desired < (1 << (32 - prefix_len))) {
+        if (!used_ips[desired]) {
+            return desired;
+        }
+        else if (now.tv_sec - last_active[desired].tv_sec >= CLIENT_TIMEOUT) {
+            pthread_cancel(threads[desired]);
+            pthread_join(threads[desired], NULL);
+            reset_conn(desired);
+            return desired;
+        }
+        else {
+            if (pthread_kill(threads[desired], 0) != 0) {
+                pthread_join(threads[desired], NULL);
+                reset_conn(desired);
+                return desired;
+            }
+        }
+    }
+
+    for (int i = 1; i < (1 << (32 - prefix_len)); ++i) {
+        if (i == EXPECTED_HOST_ID) {
+            continue;
+        }
+
         if (!used_ips[i]) {
             return i;
         }
@@ -164,7 +189,11 @@ void *clean_timeout_conns() {
     while (1) {
         sleep(CHECK_CLIENT_ALIVE_INTERVAL);
         clock_gettime(CLOCK_MONOTONIC, &now);
-        for (int i = 2; i < (1 << (32 - prefix_len)); i++) {
+        for (int i = 1; i < (1 << (32 - prefix_len)); ++ i) {
+            if (i == EXPECTED_HOST_ID) {
+                continue;
+            }
+
             if (used_ips[i] && now.tv_sec - last_active[i].tv_sec >= CLIENT_TIMEOUT) {
                 pthread_cancel(threads[i]);
                 pthread_join(threads[i], NULL);
@@ -244,6 +273,7 @@ void *tun_to_ssl(void) {
 }
 
 int main(int argc, char **argv) {
+    host_type = SERVER;
 
     setup_signal_handler();
     atexit(clean_up_all);
@@ -278,11 +308,13 @@ int main(int argc, char **argv) {
         }
     }
 
+    parse_config_file(CONFIG_PATH "/config", 1 << (32 - prefix_len));
+
     // Server ip
-    used_ips[1] = 1;
-    real_iptable[1] = inet_addr("127.0.0.1");
-    real_ports[1] = PORT;
-    ip_addr = subnet_addr + htonl(1);
+    used_ips[EXPECTED_HOST_ID] = 1;
+    real_iptable[EXPECTED_HOST_ID] = inet_addr("127.0.0.1");
+    real_ports[EXPECTED_HOST_ID] = PORT;
+    ip_addr = subnet_addr + htonl(EXPECTED_HOST_ID);
 
     application_log(stdout, "Server's IPv4 address in VPN: %s/%d\n", inet_ntoa(*(struct in_addr *)&ip_addr), prefix_len);
 
@@ -297,7 +329,7 @@ int main(int argc, char **argv) {
     SSL_CTX *ctx;
 
     init_openssl();
-    ctx = create_server_context();
+    ctx = create_context();
     configure_context(ctx);
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -331,7 +363,7 @@ int main(int argc, char **argv) {
 
     while (1) {
         struct sockaddr_in addr;
-        uint len = sizeof(addr);
+        int len = sizeof(addr);
         SSL *ssl;
 
         int client = accept(sock, (struct sockaddr*)&addr, &len);
@@ -344,15 +376,49 @@ int main(int argc, char **argv) {
         SSL_set_fd(ssl, client);
 
         if (SSL_accept(ssl) <= 0 || SSL_get_verify_result(ssl) != X509_V_OK) {
-            application_log(stderr, "Invalid connection from %s:%d.\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-        } else {
+            application_log(stderr, "Invalid connection from %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+            close(client);
+            continue;
+        }
+        else {
+            application_log(stdout, "Received connection from %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
             // Assign IP for client
-            int host_id = get_ip();
+            char buf[1000];
+            int bytes = SSL_read(ssl, buf, sizeof(buf) - 10);
+            if (bytes <= 0) {
+                application_log(stderr, "Maybe the client cannot verify your identity, connection closed.\n");
+                SSL_shutdown(ssl);
+                SSL_free(ssl);
+                close(client);
+                continue;
+            }
+            if (bytes <= strlen(REQUEST_ADDR_HEADER) || strncmp(buf, REQUEST_ADDR_HEADER, strlen(REQUEST_ADDR_HEADER)) != 0) {
+                application_log(stderr, "Invalid request message from client, close connection.\n");
+                SSL_shutdown(ssl);
+                SSL_free(ssl);
+                close(client);
+                continue;
+            }
+            buf[bytes] = 0;
+            long tmp = parse_value(buf + strlen(REQUEST_ADDR_HEADER));
+            if (tmp < 0) {
+                application_log(stderr, "Invalid request message from client, close connection.\n");
+                SSL_shutdown(ssl);
+                SSL_free(ssl);
+                close(client);
+                continue;
+            }
+
+            int host_id = get_ip(tmp);
             if (host_id > 0) {
                 struct in_addr host_ip_addr;
                 host_ip_addr.s_addr = subnet_addr + htonl(host_id);
                 char ip_str[1000];
                 sprintf(ip_str, "%s/%d", inet_ntoa(host_ip_addr), prefix_len);
+                char actual_msg[2000];
+                sprintf(actual_msg, RESPONSE_ADDR_HEADER "%s", ip_str);
                 clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
                 used_ips[host_id] = 1;
                 real_iptable[host_id] = addr.sin_addr.s_addr;
@@ -360,13 +426,10 @@ int main(int argc, char **argv) {
                 ssl_ctxs[host_id] = ssl;
                 clients[host_id] = client;
 
-                application_log(stdout, "Received connection from %s:%d, assigned as %s\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), ip_str);
+                SSL_write(ssl, actual_msg, strlen(actual_msg));
 
-                if (SSL_write(ssl, ip_str, strlen(ip_str)) <= 0) {
-                    application_log(stderr, "Maybe the client cannot verify your identity, connection closed.\n");
-                    reset_conn(host_id);
-                    continue;
-                }
+                application_log(stdout, "Assigned %s:%d as %s\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), ip_str);
+
                 pthread_create(&threads[host_id], NULL, (void*)listen_and_deliver_packets, &host_id);
             }
             else {

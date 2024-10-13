@@ -1,35 +1,28 @@
+#include "common/common.h"
 #include "utils/ssl.h"
-#include "common/application.h"
 
 #define TRUSTED_DIR CERT_PATH "/../trusted"
 #define CERT_FILE CERT_PATH "/host.crt"
 #define KEY_FILE CERT_PATH "/host.key"
+
+extern int host_type;
 
 void init_openssl(void) {
     SSL_load_error_strings();
     OpenSSL_add_all_algorithms();
 }
 
-SSL_CTX *create_server_context(void) {
+SSL_CTX *create_context(void) {
     const SSL_METHOD *method;
     SSL_CTX *ctx;
 
-    method = SSLv23_server_method();
-    ctx = SSL_CTX_new(method);
-    if (!ctx) {
-        application_log(stderr, "Unable to create SSL context.\n");
-        ERR_print_errors_fp(stderr);
-        exit(EXIT_FAILURE);
+    if (host_type == SERVER) {
+        method = SSLv23_server_method();
+    } 
+    else if (host_type == CLIENT) {
+        method = SSLv23_client_method();
     }
 
-    return ctx;
-}
-
-SSL_CTX *create_client_context(void) {
-    const SSL_METHOD *method;
-    SSL_CTX *ctx;
-
-    method = SSLv23_client_method();
     ctx = SSL_CTX_new(method);
     if (!ctx) {
         application_log(stderr, "Unable to create SSL context.\n");

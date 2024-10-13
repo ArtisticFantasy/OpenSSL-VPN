@@ -1,6 +1,5 @@
 #include "common/common.h"
 #include "common/signal.h"
-#include "common/application.h"
 
 void handle_signal(int signal) {
     if (signal == SIGINT) {

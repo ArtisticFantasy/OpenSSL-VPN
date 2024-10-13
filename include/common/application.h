@@ -1,9 +1,14 @@
 #ifndef VPN_APPLICATION_H
 #define VPN_APPLICATION_H
 
-#include <stdarg.h>
+#include <stdint.h>
+#include <errno.h>
+#include <ctype.h>
 
-#define PORT 54433
+#define MAX_HOSTS 1 << 16
+
+#define REQUEST_ADDR_HEADER "Expected host id: "
+#define RESPONSE_ADDR_HEADER "Your ip address is: "
 
 #define REGISTER_CLEAN_UP \
 void clean_up_all(void) { \
@@ -27,7 +32,9 @@ void clean_up_all(void) { \
     cleanup_openssl(); \
 }
 
-void application_log(FILE *restrict stream, const char *restrict format, ...);
+long parse_value(char *value);
+
+void parse_config_file(const char *file_path, int max_hosts);
 
 #endif
 /* VPN_APPLICATION_H */

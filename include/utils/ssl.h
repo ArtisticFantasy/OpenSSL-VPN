@@ -7,9 +7,7 @@
 
 void init_openssl(void);
 
-SSL_CTX *create_server_context(void);
-
-SSL_CTX *create_client_context(void);
+SSL_CTX *create_context(void);
 
 void configure_context(SSL_CTX *ctx);
 

@@ -1,5 +1,4 @@
 #include "common/common.h"
-#include "common/application.h"
 #include "network/setup.h"
 #include "network/subnet.h"
 

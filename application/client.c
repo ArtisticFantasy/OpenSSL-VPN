@@ -5,8 +5,11 @@
 #include "network/setup.h"
 #include "utils/ssl.h"
 
-#define CLIENT_KEEP_ALIVE_INTERVAL 100
+#define CLIENT_KEEP_ALIVE_INTERVAL 200
 
+extern uint16_t PORT;
+extern uint16_t EXPECTED_HOST_ID;
+extern int host_type;
 int tun_fd = -1, sk_fd = -1;
 char *vpn_tun_name;
 int route_added = 0;
@@ -95,11 +98,14 @@ void handle_alarm(int signal) {
 }
 
 int main(int argc, char **argv) {
+    host_type = CLIENT;
 
     if (argc < 2) {
         application_log(stderr, "Usage: %s <server_public_address>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
+
+    parse_config_file(CONFIG_PATH "/config", 0);
 
     char *server_ip = argv[1];
 
@@ -109,7 +115,7 @@ int main(int argc, char **argv) {
     struct sockaddr_in server_addr;
 
     init_openssl();
-    ctx = create_client_context();
+    ctx = create_context();
     configure_context(ctx);
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -160,13 +166,25 @@ int main(int argc, char **argv) {
     }
 
     char buf[1000];
-    int bytes = SSL_read(ssl, buf, 500);
+    // Request the expected host id from server
+    sprintf(buf, REQUEST_ADDR_HEADER "%d", EXPECTED_HOST_ID);
+    SSL_write(ssl, buf, strlen(buf));
+
+    int bytes = SSL_read(ssl, buf, sizeof(buf) - 10);
     if (bytes > 0) {
         application_log(stdout, "Connected with %s encryption.\n", SSL_get_cipher(ssl));
+        if (bytes <= strlen(RESPONSE_ADDR_HEADER) || strncmp(buf, RESPONSE_ADDR_HEADER, strlen(RESPONSE_ADDR_HEADER)) != 0) {
+            application_log(stderr, "Invalid response message from server, close connection.\n");
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+            close(sock);
+            SSL_CTX_free(ctx);
+            exit(EXIT_FAILURE);
+        }
         buf[bytes] = 0;
-        char *slash = strchr(buf, '/');
+        char *slash = strchr(buf + strlen(RESPONSE_ADDR_HEADER), '/');
         if (!slash) {
-            application_log(stderr, "Address received from server is broken\n");
+            application_log(stderr, "Address received from server is broken, close connection.\n");
             SSL_shutdown(ssl);
             SSL_free(ssl);
             close(sock);
@@ -174,18 +192,24 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
         *slash = '\0';
-        ip_addr = inet_addr(buf);
+        ip_addr = inet_addr(buf + strlen(RESPONSE_ADDR_HEADER));
         if (ip_addr == INADDR_NONE) {
-            application_log(stderr, "Address received from server is broken\n");
+            application_log(stderr, "Address received from server is broken, close connection.\n");
             SSL_shutdown(ssl);
             SSL_free(ssl);
             close(sock);
             SSL_CTX_free(ctx);
             exit(EXIT_FAILURE);
         }
+
         prefix_len = atoi(slash + 1);
         *slash = '/';
-        application_log(stdout, "Assigned IPv4 address by server: %s\n", buf);
+
+        if (EXPECTED_HOST_ID && EXPECTED_HOST_ID != ntohl(ip_addr & ~get_netmask(prefix_len))) {
+            application_log(stdout, "Server cannot satisfy requested host id, assigned host id: %d instead.\n", ntohl(ip_addr & ~get_netmask(prefix_len)));
+        }
+        
+        application_log(stdout, "Assigned IPv4 address by server: %s\n", buf + strlen(RESPONSE_ADDR_HEADER));
         setup_tun(&vpn_tun_name, ip_addr, prefix_len, &tun_fd, &sk_fd);
         in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
         sprintf(subnet_str, "%s/%d", inet_ntoa(*(struct in_addr *)&subnet_addr), prefix_len);
