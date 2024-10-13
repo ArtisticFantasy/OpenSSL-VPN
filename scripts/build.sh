@@ -16,11 +16,7 @@ cd $PROJ_DIR
 rm -rf build
 mkdir build
 cd build
-if [ "$OPENSSL_IN_TOOL" == "1" ]; then
-    cmake -DOPENSSL_IN_TOOL:BOOL=ON .. || exit 1
-else
-    cmake .. || exit 1
-fi
+cmake -DOPENSSL_DIR=$OPENSSL_DIR .. || exit 1
 
 if [ "$OS_TYPE" == "Linux" ]; then
     make -j`nproc` || exit 1

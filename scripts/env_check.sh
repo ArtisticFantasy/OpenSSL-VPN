@@ -1,7 +1,6 @@
 #!/bin/bash
 PROJ_DIR=$(realpath $(dirname $0)/..)
 OS_TYPE=$(uname)
-OPENSSL_IN_TOOL=0
 
 download_and_install_openssl() {
     INSTALL_OPENSSL_VERSION="3.3.2"
@@ -38,7 +37,6 @@ download_and_install_openssl() {
         make install || exit 1
         OPENSSL=$PROJ_DIR/tools/openssl/bin/openssl
         OPENSSL_LIB=$PROJ_DIR/tools/openssl/lib64:$PROJ_DIR/tools/openssl/lib
-        OPENSSL_IN_TOOL=1
     fi
     rm -rf $PROJ_DIR/openssl
     echo "Installed OpenSSL-$INSTALL_OPENSSL_VERSION successfully."
@@ -49,7 +47,6 @@ check_openssl_installed() {
         echo "Found OpenSSL in the project tool directory."
         OPENSSL=$PROJ_DIR/tools/openssl/bin/openssl
         OPENSSL_LIB=$PROJ_DIR/tools/openssl/lib64:$PROJ_DIR/tools/openssl/lib
-        OPENSSL_IN_TOOL=1
     else
         OPENSSL=$(command -v openssl)
         NEED_TO_INSTALL_OPENSSL=0
@@ -76,3 +73,4 @@ check_openssl_installed() {
 }
 
 check_openssl_installed
+OPENSSL_DIR=$(realpath $(dirname $(dirname $OPENSSL)))
