@@ -100,17 +100,49 @@ void handle_alarm(int signal) {
 int main(int argc, char **argv) {
     host_type = CLIENT;
 
-    if (argc < 2) {
-        application_log(stderr, "Usage: %s <server_public_address>\n", argv[0]);
+    setup_signal_handler();
+    atexit(clean_up_all);
+
+    struct option long_options[] = {
+        {"config", required_argument, 0, 'c'},
+        {"help", no_argument, 0, 'h'},
+        {0, 0, 0, 0}
+    };
+
+    char *config_file = NULL;
+
+    int opt;
+    while ((opt = getopt_long(argc, argv, "c:h", long_options, NULL)) != -1) {
+        switch (opt) {
+            case 'c':
+                if (config_file) {
+                    fprintf(stderr, "Multiple config files specified.\n");
+                    exit(EXIT_FAILURE);
+                }
+                config_file = optarg;
+                break;
+            case 'h':
+                printf("Usage: %s [-c <config_file>] <server_public_address>\n", argv[0]);
+                exit(EXIT_SUCCESS);
+            default:
+                fprintf(stderr, "Usage: %s [-c <config_file>] <server_public_address>\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    if (optind >= argc) {
+        fprintf(stderr, "Usage: %s [-c <config_file>] <server_public_address>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    parse_config_file(CONFIG_PATH "/config", 0);
+    if (!config_file) {
+        config_file = CONFIG_PATH "/config";
+        application_log(stdout, "Using default config file: %s\n", config_file);
+    }
 
-    char *server_ip = argv[1];
+    parse_config_file(config_file, 0);
 
-    setup_signal_handler();
-    atexit(clean_up_all);
+    char *server_ip = argv[optind];
 
     struct sockaddr_in server_addr;
 

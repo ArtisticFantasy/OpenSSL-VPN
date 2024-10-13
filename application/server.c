@@ -278,11 +278,48 @@ int main(int argc, char **argv) {
     setup_signal_handler();
     atexit(clean_up_all);
 
-    if (argc < 2) {
-        argv[1] = "192.168.20.0/24";
+    struct option long_options[] = {
+        {"config", required_argument, 0, 'c'},
+        {"help", no_argument, 0, 'h'},
+        {0, 0, 0, 0}
+    };
+
+    char *config_file = NULL;
+
+    int opt;
+    while ((opt = getopt_long(argc, argv, "c:h", long_options, NULL)) != -1) {
+        switch (opt) {
+            case 'c':
+                if (config_file) {
+                    fprintf(stderr, "Multiple config files specified.\n");
+                    exit(EXIT_FAILURE);
+                }
+                config_file = optarg;
+                break;
+            case 'h':
+                printf("Usage: %s [-c <config_file>] <vpn_subnet_address/prefix_len>\n", argv[0]);
+                exit(EXIT_SUCCESS);
+            default:
+                fprintf(stderr, "Usage: %s [-c <config_file>] <vpn_subnet_address/prefix_len>\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
     }
-    
-    get_subnet(argv[1], &subnet_addr, &prefix_len);
+
+    if (!config_file) {
+        config_file = CONFIG_PATH "/config";
+        application_log(stdout, "Using default config file: %s\n", config_file);
+    }
+
+    char *config_subnet_addr = NULL;
+    if (optind >= argc) {
+        config_subnet_addr = "192.168.20.0/24";
+        application_log(stdout, "Using default subnet address: %s\n", config_subnet_addr);
+    }
+    else {
+        config_subnet_addr = argv[optind];
+    }
+
+    get_subnet(config_subnet_addr, &subnet_addr, &prefix_len);
 
     if (subnet_addr == INADDR_NONE) {
         application_log(stderr, "Invalid subnet address.\n");
@@ -308,7 +345,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    parse_config_file(CONFIG_PATH "/config", 1 << (32 - prefix_len));
+    parse_config_file(config_file, 1 << (32 - prefix_len));
 
     // Server ip
     used_ips[EXPECTED_HOST_ID] = 1;
