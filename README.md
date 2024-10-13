@@ -77,7 +77,7 @@ sudo ./build/bin/vpn_server [-c <config_file>] <vpn_subnet_address/prefix_len>
 连接server，执行
 
 ```
-sudo ./build/bin/vpn_client <server_public_address>
+sudo ./build/bin/vpn_client [-c <config_file>] <server_public_address>
 ```
 
 ## 参考资料
