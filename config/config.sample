@@ -1,0 +1,4 @@
+# Server port
+PORT = 54433
+# Expected host id
+EXPECTED_HOST_ID = 1

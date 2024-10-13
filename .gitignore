@@ -3,6 +3,7 @@ trusted/
 openssl/
 tools/
 build/
+config/config
 
 *.zip
 *.tar.gz
