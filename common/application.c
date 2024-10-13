@@ -31,7 +31,7 @@ long parse_value(char *value) {
 void parse_config_file(const char *file_path, int max_hosts) {
     FILE *file = fopen(file_path, "r");
     if (!file) {
-        application_log(stderr, "Unable to open config file %s.\n", file_path);
+        application_log(stderr, "Unable to open config file %s\n", file_path);
         exit(EXIT_FAILURE);
     }
 
