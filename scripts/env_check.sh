@@ -111,4 +111,6 @@ check_openssl_installed() {
     fi
 }
 
+BACKUP_PATH=$(realpath $PWD)
 check_openssl_installed
+cd $BACKUP_PATH
