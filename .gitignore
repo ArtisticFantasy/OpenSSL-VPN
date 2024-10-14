@@ -5,6 +5,7 @@ tools/
 build/
 config/*
 !config/config.sample
+scripts/build
 
 *.zip
 *.tar.gz

@@ -4,13 +4,11 @@ project(OPENSSL_VPN_DEMO)
 
 set(CMAKE_CXX_STANDARD 17)
 
-if(OPENSSL_DIR)
-    set(OPENSSL_ROOT_DIR ${OPENSSL_DIR})
+if (OPENSSL_IN_TOOL)
+   find_package(OpenSSL REQUIRED PATHS ${PROJECT_SOURCE_DIR}/tools/openssl/lib64/cmake ${PROJECT_SOURCE_DIR}/tools/openssl/lib/cmake)
 else()
-    message(FATAL_ERROR "OPENSSL_DIR is not set. Please set the OPENSSL_DIR environment variable.")
+   find_package(OpenSSL ${OPENSSL_VERSION} REQUIRED)
 endif()
-
-find_package(OpenSSL REQUIRED)
 
 set(OPENSSL_LIBS ${OPENSSL_CRYPTO_LIBRARIES} ${OPENSSL_SSL_LIBRARIES})
 
