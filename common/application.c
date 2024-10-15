@@ -80,7 +80,7 @@ void parse_config_file(const char *file_path, int max_hosts) {
             else {
                 long tmp = parse_value(value);
 
-                if (tmp < 50000 || tmp >= UINT16_MAX) {
+                if (tmp < 10000 || tmp >= UINT16_MAX) {
                     application_log(stderr, "Invalid PORT value.\n");
                     fclose(file);
                     exit(EXIT_FAILURE);
