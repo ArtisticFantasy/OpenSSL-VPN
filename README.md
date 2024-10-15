@@ -61,7 +61,7 @@ EXPECTED_HOST_ID = <EXPECTED_HOST_ID>
 
 You can refer to `config/config.sample` for a configuration file example. If the configuration file location is not explicitly specified through parameters when starting `vpn_server` and `vpn_client`, the default configuration file `config/config` in the project folder will be used (needs to be created manually).
 
-### 运行
+### Run
 
 #### server
 
