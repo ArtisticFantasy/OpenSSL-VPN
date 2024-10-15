@@ -9,6 +9,7 @@
 
 extern uint16_t PORT;
 extern uint16_t EXPECTED_HOST_ID;
+extern in_addr_t SERVER_IP;
 extern int host_type;
 int tun_fd = -1, sk_fd = -1;
 char *vpn_tun_name;
@@ -122,16 +123,16 @@ int main(int argc, char **argv) {
                 config_file = optarg;
                 break;
             case 'h':
-                printf("Usage: %s [-c <config_file>] <server_public_address>\n", argv[0]);
+                printf("Usage: %s [-c <config_file>]\n", argv[0]);
                 exit(EXIT_SUCCESS);
             default:
-                fprintf(stderr, "Usage: %s [-c <config_file>] <server_public_address>\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-c <config_file>]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
 
-    if (optind >= argc) {
-        fprintf(stderr, "Usage: %s [-c <config_file>] <server_public_address>\n", argv[0]);
+    if (optind < argc) {
+        fprintf(stderr, "Invalid argument. Use option -h to get help.\n");
         exit(EXIT_FAILURE);
     }
 
@@ -141,8 +142,6 @@ int main(int argc, char **argv) {
     }
 
     parse_config_file(config_file, 0);
-
-    char *server_ip = argv[optind];
 
     struct sockaddr_in server_addr;
 
@@ -159,12 +158,7 @@ int main(int argc, char **argv) {
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
-    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
-        application_log(stderr, "Invalid address / Address not supported.\n");
-        close(sock);
-        SSL_CTX_free(ctx);
-        exit(EXIT_FAILURE);
-    }
+    server_addr.sin_addr.s_addr = SERVER_IP;
 
     signal(SIGALRM, handle_alarm);
     struct itimerval timer;
@@ -173,6 +167,8 @@ int main(int argc, char **argv) {
     timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = 0;
     setitimer(ITIMER_REAL, &timer, NULL);
+
+    application_log(stdout, "Connecting to server %s:%d...\n", inet_ntoa(server_addr.sin_addr), PORT);
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         application_log(stderr, "Connecting to server failed.\n");
         close(sock);

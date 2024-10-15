@@ -305,18 +305,18 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!config_file) {
-        config_file = CONFIG_PATH "/config";
-        application_log(stdout, "Using default config file: %s\n", config_file);
-    }
-
     char *config_subnet_addr = NULL;
+
     if (optind >= argc) {
         config_subnet_addr = "192.168.20.0/24";
         application_log(stdout, "Using default subnet address: %s\n", config_subnet_addr);
     }
-    else {
+    else if (optind == argc - 1) {
         config_subnet_addr = argv[optind];
+    }
+    else {
+        fprintf(stderr, "Invalid argument. Use option -h to get help.\n");
+        exit(EXIT_FAILURE);
     }
 
     get_subnet(config_subnet_addr, &subnet_addr, &prefix_len);
@@ -324,6 +324,11 @@ int main(int argc, char **argv) {
     if (subnet_addr == INADDR_NONE) {
         application_log(stderr, "Invalid subnet address.\n");
         exit(EXIT_FAILURE);
+    }
+
+    if (!config_file) {
+        config_file = CONFIG_PATH "/config";
+        application_log(stdout, "Using default config file: %s\n", config_file);
     }
     
     for (int i=0; i<3; i++) {
@@ -393,6 +398,8 @@ int main(int argc, char **argv) {
         application_log(stderr, "Unable to listen on port.\n");
         exit(EXIT_FAILURE);
     }
+
+    application_log(stdout, "Listening on port %d...\n", PORT);
 
     pthread_t timeout_thread, tun_to_ssl_thread;
     pthread_create(&timeout_thread, NULL, (void*)clean_timeout_conns, NULL);

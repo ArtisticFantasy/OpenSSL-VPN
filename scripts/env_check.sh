@@ -6,7 +6,7 @@ NEED_TO_INSTALL_OPENSSL=0
 
 download_and_install_openssl() {
     INSTALL_OPENSSL_VERSION="3.3.2"
-    echo "Installing OpenSSL-$INSTALL_OPENSSL_VERSION ..."
+    echo "Installing OpenSSL $INSTALL_OPENSSL_VERSION ..."
     if [ ! -d $PROJ_DIR/openssl ]; then
         cd $PROJ_DIR
         if [ ! -f openssl-$INSTALL_OPENSSL_VERSION.tar.gz ]; then
@@ -35,7 +35,7 @@ download_and_install_openssl() {
         sudo make install || exit 1
         OPENSSL=$(command -v openssl)
         mkdir -p $PROJ_DIR/scripts/build
-        cd $PROJ_DIR/scripts/build && cmake -DOPENSSL_VERSION=$OPENSSL_VERSION ..
+        cd $PROJ_DIR/scripts/build && cmake -DOPENSSL_VERSION=$OPENSSL_VERSION .. > /dev/null
         if [ $? -ne 0 ]; then
             echo "Still cannot find OpenSSL libraries or headers on your machine, error!"
             exit 1
@@ -81,7 +81,7 @@ check_openssl_installed() {
         else
             REQUIRED_VERSION="3.0.13"
             mkdir -p $PROJ_DIR/scripts/build
-            cd $PROJ_DIR/scripts/build && cmake -DOPENSSL_VERSION=$OPENSSL_VERSION ..
+            cd $PROJ_DIR/scripts/build && cmake -DOPENSSL_VERSION=$OPENSSL_VERSION .. > /dev/null
             if [ $? -ne 0 ]; then
                 echo "Cannot find OpenSSL libraries or headers on your machine."
                 NEED_TO_INSTALL_OPENSSL=1
@@ -106,7 +106,7 @@ check_openssl_installed() {
                 exit 1
             fi
         else
-            echo "Found OpenSSL-$OPENSSL_VERSION on your machine."
+            echo "Found OpenSSL $OPENSSL_VERSION on your machine."
         fi
     fi
 }

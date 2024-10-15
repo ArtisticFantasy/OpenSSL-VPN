@@ -28,3 +28,8 @@ if [ "$OS_TYPE" == "Linux" ]; then
 elif [ "$OS_TYPE" == "Darwin" ]; then
     make -j`sysctl -n hw.ncpu` || exit 1
 fi
+
+echo "Build successfully."
+
+ln -sf $PROJ_DIR/build/bin/vpn_server $PROJ_DIR/vpn_server || exit 1
+ln -sf $PROJ_DIR/build/bin/vpn_client $PROJ_DIR/vpn_client || exit 1

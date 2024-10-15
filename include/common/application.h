@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <ctype.h>
+#include <arpa/inet.h>
 
 #define MAX_HOSTS 1 << 16
 

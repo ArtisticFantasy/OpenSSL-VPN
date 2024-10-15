@@ -1,4 +1,8 @@
+# Server ip (only required for client)
+SERVER_IP = <SERVER_REAL_WORLD_ADDRESS>
+
 # Server port
 PORT = 54433
+
 # Expected host id
 EXPECTED_HOST_ID = 1

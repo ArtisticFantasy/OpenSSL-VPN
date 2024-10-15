@@ -1,13 +1,21 @@
+# Directories
 certs/
 trusted/
 openssl/
 tools/
 build/
-config/*
-!config/config.sample
+peers/
 scripts/build
 
+# Config
+config/*
+!config/config.sample
+
+# Files
 *.zip
 *.tar.gz
-
 *.crt
+
+# Executables
+vpn_server
+vpn_client

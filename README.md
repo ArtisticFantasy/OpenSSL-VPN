@@ -3,7 +3,8 @@
 ## 简介
 
 - 面向Linux/MacOS的轻量级SSL VPN
-- 一个vpn_server与多个vpn_client之间构成一个虚拟子网，vpn_client与vpn_server建立连接时，vpn_server会自动给vpn_client分配一个虚拟IPv4地址，之后便可按照局域网通信的方式访问虚拟子网内所有主机，并使用OpenSSL库对通信加密，可以实现不同NAT下两个client的端到端直接通信
+
+- 采用client-server架构设计，一个vpn_server与多个vpn_client之间构成一个虚拟子网，vpn_client与vpn_server建立连接时，vpn_server会自动给vpn_client分配一个虚拟IPv4地址，之后便可按照局域网通信的方式访问虚拟子网内所有主机，并使用OpenSSL库对通信加密，可以实现不同NAT下两个client的端到端直接通信
 
 ## 架构
 
@@ -28,7 +29,7 @@ git clone https://github.com/ArtisticFantasy/OpenSSL-VPN.git
 ### 构建
 
 ```
-./scripts/build.sh
+cd /path/to/OpenSSL-VPN && ./scripts/build.sh
 ```
 
 ### 认证准备
@@ -36,25 +37,28 @@ git clone https://github.com/ArtisticFantasy/OpenSSL-VPN.git
 1.&nbsp;检查项目目录下```certs/```中是否存在```host.key```和```host.crt```文件，如果没有，执行
 
 ```
-./scripts/gen_certs.sh
+cd /path/to/OpenSSL-VPN && ./scripts/gen_certs.sh
 ```
 
 2.&nbsp;获取peer的自签名证书(物理拷贝peer的```certs/host.crt```)，假设为```/path/to/peer.crt```，执行
 
 ```
-./scripts/add_trusted.sh /path/to/peer.crt
+cd /path/to/OpenSSL-VPN && ./scripts/add_trusted.sh /path/to/peer.crt
 ```
 
-3.&nbsp;编写配置文件，配置文件格式如下，文件中可使用"#"作为注释符
+### 编写配置
+
+编写配置文件，配置文件格式如下，文件中可使用"#"作为注释符
 
 ```
+SERVER_IP = <SERVER_REAL_WORLD_ADDRESS> #只有vpn_client需要指定
 PORT = <SERVER_PORT_NUMBER>
 EXPECTED_HOST_ID = <EXPECTED_HOST_ID>
 ```
 
 - 对于vpn_server，```PORT```表示监听端口号(默认值54433)，```EXPECTED_HOST_ID```表示其在VPN子网内的主机号(默认值1)
 
-- 对于vpn_client，```PORT```表示连接到vpn_server所在主机对应端口(需要与vpn_server的配置相同，默认值54433)，```EXPECTED_HOST_ID```表示其期望被分配的主机号，vpn_server会尽量满足vpn_client的主机号请求，除非对应主机号已被分配
+- 对于vpn_client，```SERVER_IP```表示连接到vpn_server的实际地址（必须指定），```PORT```表示连接到vpn_server所在主机对应端口(需要与vpn_server的配置相同，默认值54433)，```EXPECTED_HOST_ID```表示其期望被分配的主机号（不指定时由vpn_server决定分配主机号），vpn_server会尽量满足vpn_client的主机号请求，除非对应主机号已被分配
 
 配置文件示例可参考```config/config.sample```，如果在启动vpn_server和vpn_client时不通过参数显式指定配置文件位置，则会默认使用项目文件夹下的```config/config```作为配置文件(需要手动创建)
 
@@ -65,7 +69,7 @@ EXPECTED_HOST_ID = <EXPECTED_HOST_ID>
 启动server（可指定配置文件），并设置VPN子网地址，执行
 
 ```
-sudo ./build/bin/vpn_server [-c <config_file>] <vpn_subnet_address/prefix_len>
+cd /path/to/OpenSSL-VPN && sudo ./vpn_server [-c <config_file>] <vpn_subnet_address/prefix_len>
 ```
 
 这里子网地址可以不显式指定，vpn_server会使用默认地址192.168.20.0/24
@@ -77,7 +81,7 @@ sudo ./build/bin/vpn_server [-c <config_file>] <vpn_subnet_address/prefix_len>
 连接server，执行
 
 ```
-sudo ./build/bin/vpn_client [-c <config_file>] <server_public_address>
+cd /path/to/OpenSSL-VPN && sudo ./vpn_client [-c <config_file>]
 ```
 
 ## 参考资料

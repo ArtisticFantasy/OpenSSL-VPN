@@ -3,7 +3,8 @@
 
 uint16_t PORT = 0;
 uint16_t EXPECTED_HOST_ID = 0;
-int host_type = -1;
+in_addr_t SERVER_IP = INADDR_NONE;
+extern int host_type;
 
 char *trim(char *str) {
     while (isspace(*str)) {
@@ -49,16 +50,28 @@ void parse_config_file(const char *file_path, int max_hosts) {
         }
         if (!strlen(line)) continue;
 
-        char *key = strtok(line, "=");
+        char *trim_line = trim(line);
+
+        char *key = strtok(trim_line, "=");
         char *value = strtok(NULL, "=");
         if (!key || !value) {
+            if (strlen(trim_line)) {
+                application_log(stderr, "Invalid grammar in config file: %s\n", line);
+                fclose(file);
+                exit(EXIT_FAILURE);
+            }
             continue;
         }
         key = trim(key);
         value = trim(value);
-
+        
+        //Option PORT
         if (!strcmp(key, "PORT")) {
-            if (PORT) continue;
+            if (PORT) {
+                application_log(stderr, "Multiple PORT specified.\n");
+                fclose(file);
+                exit(EXIT_FAILURE);
+            }
             if (!strlen(value)) {
                 application_log(stderr, "Invalid PORT value.\n");
                 fclose(file);
@@ -83,8 +96,13 @@ void parse_config_file(const char *file_path, int max_hosts) {
                 
             }
         }
+        //Option EXPECTED_HOST_ID
         else if (!strcmp(key, "EXPECTED_HOST_ID")) {
-            if (EXPECTED_HOST_ID) continue;
+            if (EXPECTED_HOST_ID) {
+                application_log(stderr, "Multiple EXPECTED_HOST_ID specified.\n");
+                fclose(file);
+                exit(EXIT_FAILURE);
+            }
             if (!strlen(value)) {
                 application_log(stderr, "Invalid EXPECTED_HOST_ID value.\n");
                 fclose(file);
@@ -102,6 +120,31 @@ void parse_config_file(const char *file_path, int max_hosts) {
 
                 application_log(stdout, "Setting expected host id: %d\n", EXPECTED_HOST_ID);
             }
+        }
+        // Option SERVER_IP
+        else if (!strcmp(key, "SERVER_IP")) {
+            if (SERVER_IP != INADDR_NONE) {
+                application_log(stderr, "Multiple SERVER_IP specified.\n");
+                fclose(file);
+                exit(EXIT_FAILURE);
+            }
+            SERVER_IP = inet_addr(value);
+            if (SERVER_IP == INADDR_NONE) {
+                application_log(stderr, "Invalid SERVER_IP value.\n");
+                fclose(file);
+                exit(EXIT_FAILURE);
+            }
+            if (host_type == SERVER) {
+                application_log(stdout, "SERVER_IP is useless for server, skip.\n");
+            }
+            else {
+                application_log(stdout, "Setting server ip: %s\n", value);
+            }
+        }
+        else {
+            application_log(stderr, "Unknown option: %s\n", key);
+            fclose(file);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -123,6 +166,12 @@ void parse_config_file(const char *file_path, int max_hosts) {
         else if (host_type == CLIENT) {
             application_log(stdout, "Did not find EXPECTED_HOST_ID in config file, let server determine it.\n");
         }
+    }
+
+    if (host_type == CLIENT && SERVER_IP == INADDR_NONE) {
+        application_log(stderr, "Did not find SERVER_IP in config file!\n");
+        fclose(file);
+        exit(EXIT_FAILURE);
     }
 
     fclose(file);
