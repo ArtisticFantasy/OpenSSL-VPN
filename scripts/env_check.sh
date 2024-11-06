@@ -34,6 +34,7 @@ download_and_install_openssl() {
     if [[ "$choice" == [Yy]* ]]; then
         sudo make install || exit 1
         OPENSSL=$(command -v openssl)
+        C_REHASH=$(command -v c_rehash)
         mkdir -p $PROJ_DIR/scripts/build
         cd $PROJ_DIR/scripts/build && cmake -DOPENSSL_VERSION=$OPENSSL_VERSION .. > /dev/null
         if [ $? -ne 0 ]; then
@@ -56,6 +57,7 @@ download_and_install_openssl() {
     else
         make install || exit 1
         OPENSSL=$PROJ_DIR/tools/openssl/bin/openssl
+        C_REHASH=$PROJ_DIR/tools/openssl/bin/c_rehash
         OPENSSL_LIB=$PROJ_DIR/tools/openssl/lib64:$PROJ_DIR/tools/openssl/lib
         OPENSSL_IN_TOOL=1
     fi
@@ -67,10 +69,12 @@ check_openssl_installed() {
     if [ -x $PROJ_DIR/tools/openssl/bin/openssl ]; then
         echo "Found OpenSSL in the project tool directory."
         OPENSSL=$PROJ_DIR/tools/openssl/bin/openssl
+        C_REHASH=$PROJ_DIR/tools/openssl/bin/c_rehash
         OPENSSL_LIB=$PROJ_DIR/tools/openssl/lib64:$PROJ_DIR/tools/openssl/lib
         OPENSSL_IN_TOOL=1
     else
         OPENSSL=$(command -v openssl)
+        C_REHASH=$(command -v c_rehash)
         OPENSSL_VERSION=$($OPENSSL version | awk '{print $2}')
         if [ -z $OPENSSL ]; then
             echo "OpenSSL does not exist on your machine."

@@ -15,7 +15,7 @@ mkdir -p $PROJ_DIR/trusted
 cp -f $1 $PROJ_DIR/trusted/
 
 if [ $OS_TYPE == "Linux" ]; then
-    cd $PROJ_DIR/trusted/ && LD_LIBRARY_PATH=$OPENSSL_LIB $(command -v c_rehash) .
+    cd $PROJ_DIR/trusted/ && LD_LIBRARY_PATH=$OPENSSL_LIB $C_REHASH .
 elif [ $OS_TYPE == "Darwin" ]; then
-    cd $PROJ_DIR/trusted/ && DYLD_LIBRARY_PATH=$OPENSSL_LIB $(command -v c_rehash) .
+    cd $PROJ_DIR/trusted/ && DYLD_LIBRARY_PATH=$OPENSSL_LIB $C_REHASH .
 fi
