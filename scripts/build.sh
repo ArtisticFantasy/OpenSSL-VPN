@@ -6,11 +6,6 @@ if [ ! -d $PROJ_DIR/trusted ]; then
     mkdir $PROJ_DIR/trusted
 fi
 
-# Generate certificate files
-if [ ! -d $PROJ_DIR/certs ]; then
-    $PROJ_DIR/gen_certs.sh
-fi
-
 # Build sources
 cd $PROJ_DIR
 rm -rf build
@@ -29,7 +24,7 @@ elif [ "$OS_TYPE" == "Darwin" ]; then
     make -j`sysctl -n hw.ncpu` || exit 1
 fi
 
-echo "Build successfully."
+echo "Built successfully."
 
 ln -sf $PROJ_DIR/build/bin/vpn_server $PROJ_DIR/vpn_server || exit 1
 ln -sf $PROJ_DIR/build/bin/vpn_client $PROJ_DIR/vpn_client || exit 1
