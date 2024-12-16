@@ -59,14 +59,14 @@ void *tun_to_ssl(SSL *ssl) {
             continue;
         }
 #endif
-        SSL_write(ssl, buf, bytes);
+        SSL_send_packet(ssl, buf, bytes);
     }
 }
 
 void *ssl_to_tun(SSL *ssl) {
     char buf[70000];
     while (1) {
-        int bytes = SSL_read(ssl, buf, sizeof(buf));
+        int bytes = SSL_receive_packet(ssl, buf, sizeof(buf));
         if (bytes > 0) {
 #ifdef __linux__
             write(tun_fd, buf, bytes);
@@ -83,7 +83,7 @@ void *ssl_to_tun(SSL *ssl) {
 void *keep_alive(SSL *ssl) {
     while (1) {
         sleep(CLIENT_KEEP_ALIVE_INTERVAL);
-        SSL_write(ssl, "hello", strlen("hello"));
+        SSL_send_packet(ssl, "hello", strlen("hello"));
     }
 }
 
@@ -196,9 +196,9 @@ int main(int argc, char **argv) {
     char buf[1000];
     // Request the expected host id from server
     sprintf(buf, REQUEST_ADDR_HEADER "%d", EXPECTED_HOST_ID);
-    SSL_write(ssl, buf, strlen(buf));
+    SSL_send_packet(ssl, buf, strlen(buf));
 
-    int bytes = SSL_read(ssl, buf, sizeof(buf) - 10);
+    int bytes = SSL_receive_packet(ssl, buf, sizeof(buf) - 10);
     if (bytes > 0) {
         application_log(stdout, "Connected with %s encryption.\n", SSL_get_cipher(ssl));
         if (bytes <= strlen(RESPONSE_ADDR_HEADER) || strncmp(buf, RESPONSE_ADDR_HEADER, strlen(RESPONSE_ADDR_HEADER)) != 0) {

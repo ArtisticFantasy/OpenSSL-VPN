@@ -104,7 +104,7 @@ void *listen_and_deliver_packets(int *hostid) {
     int host_id = *hostid;
     char buf[70000];
     while (1) {
-        int bytes = SSL_read(ssl_ctxs[host_id], buf, sizeof(buf));
+        int bytes = SSL_receive_packet(ssl_ctxs[host_id], buf, sizeof(buf));
 
         if (bytes <= 0) {
             reset_conn(host_id);
@@ -180,7 +180,7 @@ void *listen_and_deliver_packets(int *hostid) {
 
         clock_gettime(CLOCK_MONOTONIC, &last_active[target_host_id]);
 
-        SSL_write(ssl_ctxs[target_host_id], buf, bytes);
+        SSL_send_packet(ssl_ctxs[target_host_id], buf, bytes);
     }
 }
 
@@ -268,7 +268,7 @@ void *tun_to_ssl(void) {
 
         clock_gettime(CLOCK_MONOTONIC, &last_active[target_host_id]);
 
-        SSL_write(ssl_ctxs[target_host_id], buf, bytes);
+        SSL_send_packet(ssl_ctxs[target_host_id], buf, bytes);
     }
 }
 
@@ -430,7 +430,7 @@ int main(int argc, char **argv) {
             application_log(stdout, "Received connection from %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
             // Assign IP for client
             char buf[1000];
-            int bytes = SSL_read(ssl, buf, sizeof(buf) - 10);
+            int bytes = SSL_receive_packet(ssl, buf, sizeof(buf) - 10);
             if (bytes <= 0) {
                 application_log(stderr, "Maybe the client cannot verify your identity, connection closed.\n");
                 SSL_shutdown(ssl);
@@ -470,7 +470,7 @@ int main(int argc, char **argv) {
                 ssl_ctxs[host_id] = ssl;
                 clients[host_id] = client;
 
-                SSL_write(ssl, actual_msg, strlen(actual_msg));
+                SSL_send_packet(ssl, actual_msg, strlen(actual_msg));
 
                 application_log(stdout, "Assigned %s:%d as %s\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), ip_str);
 

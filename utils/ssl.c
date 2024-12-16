@@ -61,3 +61,14 @@ void configure_context(SSL_CTX *ctx) {
 void cleanup_openssl(void) {
     EVP_cleanup();
 }
+
+int SSL_send_packet(SSL *ssl, char *buf, int bytes) {
+    /* TODO: Add Encoder */
+    return SSL_write(ssl, buf, bytes);
+}
+
+int SSL_receive_packet(SSL *ssl, char *buf, int buf_len) {
+    int len = SSL_read(ssl, buf, buf_len);
+    /* TODO: Add Decoder */
+    return len;
+}

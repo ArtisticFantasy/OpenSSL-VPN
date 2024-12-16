@@ -13,5 +13,8 @@ void configure_context(SSL_CTX *ctx);
 
 void cleanup_openssl(void);
 
+int SSL_send_packet(SSL *ssl, char *buf, int bytes);
+
+int SSL_receive_packet(SSL *ssl, char *buf, int buf_len);
 #endif
 /* VPN_SSL_H */
