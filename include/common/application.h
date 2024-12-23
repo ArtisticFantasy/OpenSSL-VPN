@@ -42,5 +42,6 @@ long parse_value(char *value);
 
 void parse_config_file(const char *file_path, int max_hosts);
 
+void sleep_ms(int milliseconds);
 #endif
 /* VPN_APPLICATION_H */

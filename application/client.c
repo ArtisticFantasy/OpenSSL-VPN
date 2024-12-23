@@ -70,7 +70,7 @@ void *ssl_to_tun(SSL *ssl) {
     char *buf = (char*)malloc(MAX_PKT_SIZE * 2 + 20);
     while (1) {
         int bytes = SSL_receive_packet(ssl, buf, MAX_PKT_SIZE * 2 + 20, 1);
-        
+
         if (bytes != KEEP_ALIVE_CODE && bytes > 0) {
             write_tun(tun_fd, buf, bytes);
         }
@@ -93,7 +93,7 @@ void *confuse(SSL *ssl) {
     struct timespec now;
     while (1) {
         double interval = (CONFUSE_MAX_INTERVAL - CONFUSE_MIN_INTERVAL) * (random() / (double)RAND_MAX) + CONFUSE_MIN_INTERVAL;
-        sleep(interval);
+        sleep_ms(interval * 1000);
         clock_gettime(CLOCK_MONOTONIC, &now);
         if (!TRAFFIC_CONFUSE) {
             continue;

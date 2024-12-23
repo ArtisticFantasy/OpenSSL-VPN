@@ -306,7 +306,7 @@ void *confuse(int *hostid) {
     struct timespec now;
     while (1) {
         double interval = (CONFUSE_MAX_INTERVAL - CONFUSE_MIN_INTERVAL) * (random() / (double)RAND_MAX) + CONFUSE_MIN_INTERVAL;
-        sleep(interval);
+        sleep_ms(interval * 1000);
         clock_gettime(CLOCK_MONOTONIC, &now);
         if (!TRAFFIC_CONFUSE) {
             continue;
