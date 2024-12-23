@@ -65,6 +65,7 @@ void cleanup_openssl(void) {
 }
 
 int SSL_send_packet(SSL *ssl, char *buf, int bytes, unsigned char encode, int confuse_len) {
+    confuse_len = min(confuse_len, MAX_PKT_SIZE / 2);
     if (!encode) {
         return SSL_write(ssl, buf, bytes);
     }
@@ -95,6 +96,7 @@ int SSL_send_packet(SSL *ssl, char *buf, int bytes, unsigned char encode, int co
                 nbuf[sizeof(struct vpn_hdr) + i] = random() % 256;
             }
             nlen = SSL_write(ssl, nbuf, nlen);
+            free(nbuf);
             return nlen;
         }
     } else {
@@ -110,6 +112,7 @@ int SSL_send_packet(SSL *ssl, char *buf, int bytes, unsigned char encode, int co
             nbuf[sizeof(struct vpn_hdr) + bytes + i] = random() % 256;
         }
         nlen = SSL_write(ssl, nbuf, nlen);
+        free(nbuf);
         return nlen;
     }
 }

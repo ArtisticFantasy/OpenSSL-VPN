@@ -117,7 +117,7 @@ void *listen_and_deliver_packets(int *hostid) {
     int host_id = *hostid;
     char *buf = (char *)malloc(MAX_PKT_SIZE * 2 + 20);
     while (1) {
-        int bytes = SSL_receive_packet(ssl_ctxs[host_id], buf, sizeof(buf), 0);
+        int bytes = SSL_receive_packet(ssl_ctxs[host_id], buf, MAX_PKT_SIZE * 2 + 20, 0);
         in_addr_t host_addr = subnet_addr + htonl(host_id);
 
         if (bytes == KEEP_ALIVE_CODE){

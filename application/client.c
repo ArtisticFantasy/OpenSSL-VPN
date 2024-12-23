@@ -69,7 +69,7 @@ void *tun_to_ssl(SSL *ssl) {
 void *ssl_to_tun(SSL *ssl) {
     char *buf = (char*)malloc(MAX_PKT_SIZE * 2 + 20);
     while (1) {
-        int bytes = SSL_receive_packet(ssl, buf, sizeof(buf), 1);
+        int bytes = SSL_receive_packet(ssl, buf, MAX_PKT_SIZE * 2 + 20, 1);
         if (bytes != KEEP_ALIVE_CODE && bytes > 0) {
             write_tun(tun_fd, buf, bytes);
         }
