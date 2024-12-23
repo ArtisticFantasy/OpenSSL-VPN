@@ -10,7 +10,7 @@
 
 extern uint16_t PORT;
 extern uint16_t EXPECTED_HOST_ID;
-extern unsigned char TRAFFIC_CONFUSE;
+extern int TRAFFIC_CONFUSE;
 extern int host_type;
 int tun_fd = -1, sk_fd = -1;
 char *vpn_tun_name;

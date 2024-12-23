@@ -4,7 +4,7 @@
 uint16_t PORT = 0;
 uint16_t EXPECTED_HOST_ID = 0;
 in_addr_t SERVER_IP = INADDR_NONE;
-unsigned char TRAFFIC_CONFUSE = -1;
+int TRAFFIC_CONFUSE = -1;
 extern int host_type;
 
 char *trim(char *str) {
