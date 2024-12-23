@@ -27,7 +27,7 @@ void *tun_to_ssl(SSL *ssl) {
     char *buf = (char*)malloc(MAX_PKT_SIZE * 2 + 20);
     in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
     while (1) {
-        int bytes = read_tun(tun_fd, buf, MAX_PKT_SIZE);
+        int bytes = read_tun(tun_fd, buf, MAX_PKT_SIZE * 2);
 
         if (bytes <= 0) {
             free(buf);
@@ -70,6 +70,7 @@ void *ssl_to_tun(SSL *ssl) {
     char *buf = (char*)malloc(MAX_PKT_SIZE * 2 + 20);
     while (1) {
         int bytes = SSL_receive_packet(ssl, buf, MAX_PKT_SIZE * 2 + 20, 1);
+        
         if (bytes != KEEP_ALIVE_CODE && bytes > 0) {
             write_tun(tun_fd, buf, bytes);
         }

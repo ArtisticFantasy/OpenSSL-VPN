@@ -139,8 +139,14 @@ void *listen_and_deliver_packets(int *hostid) {
             continue;
         }
 
+        if (bytes < sizeof(struct vpn_hdr)) {
+            continue;
+        }
+
+        struct vpn_hdr *vhdr = (struct vpn_hdr *)buf;
+
 #ifdef __linux__
-        if (bytes < sizeof(struct iphdr)) {
+        if (vhdr->data_length < sizeof(struct iphdr)) {
             continue;
         }
         struct iphdr *iph = (struct iphdr *)(buf + sizeof(struct vpn_hdr));
@@ -151,7 +157,7 @@ void *listen_and_deliver_packets(int *hostid) {
         clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
 
         if (iph->daddr == ip_addr) {
-            write_tun(tun_fd, buf + sizeof(struct vpn_hdr), bytes);
+            write_tun(tun_fd, buf + sizeof(struct vpn_hdr), vhdr->data_length);
             continue;
         }
 
@@ -161,7 +167,7 @@ void *listen_and_deliver_packets(int *hostid) {
 
         int target_host_id = ntohl(iph->daddr - subnet_addr);
 #elif __APPLE__
-        if (bytes < sizeof(struct ip)) {
+        if (vhdr->data_length < sizeof(struct ip)) {
             continue;
         }
         struct ip *iph = (struct ip *)(buf + sizeof(struct vpn_hdr));
@@ -172,7 +178,7 @@ void *listen_and_deliver_packets(int *hostid) {
         clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
 
         if (iph->ip_dst.s_addr == ip_addr) {
-            write_tun(tun_fd, buf + sizeof(struct vpn_hdr), bytes);
+            write_tun(tun_fd, buf + sizeof(struct vpn_hdr), vhdr->data_length);
             continue;
         }
 
@@ -198,7 +204,6 @@ void *listen_and_deliver_packets(int *hostid) {
 
         clock_gettime(CLOCK_MONOTONIC, &last_active[target_host_id]);
 
-        struct vpn_hdr *vhdr = (struct vpn_hdr *)buf;
         SSL_send_packet(ssl_ctxs[target_host_id], buf, sizeof(struct vpn_hdr) + vhdr->data_length + vhdr->padding_length, 0, 0);
     }
     free(buf);
@@ -228,7 +233,7 @@ void *clean_timeout_conns() {
 void *tun_to_ssl(void) {
     char *buf = (char *)malloc(MAX_PKT_SIZE * 2 + 20);
     while (1) {
-        int bytes = read_tun(tun_fd, buf, sizeof(buf));
+        int bytes = read_tun(tun_fd, buf, MAX_PKT_SIZE * 2);
 
         if (bytes <= 0) {
             free(buf);

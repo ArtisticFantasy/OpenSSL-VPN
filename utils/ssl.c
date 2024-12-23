@@ -160,8 +160,11 @@ int SSL_receive_packet(SSL *ssl, char *buf, int buf_len, unsigned char decode) {
         if (decode) {
             assert(vhdr->data_length <= buf_len && "Buffer is too small.");
             memcpy(buf, data_buf, vhdr->data_length);
+            ret = vhdr->data_length;
         }
-        ret = vhdr->data_length;
+        else {
+            ret = sizeof(struct vpn_hdr) + vhdr->data_length + vhdr->padding_length;
+        }
         break;
     default:
         ret = 0;
