@@ -24,7 +24,7 @@ struct timespec last_send;
 REGISTER_CLEAN_UP
 
 void *tun_to_ssl(SSL *ssl) {
-    char *buf = (char*)malloc(MAX_PKT_SIZE + 10);
+    char *buf = (char*)malloc(MAX_PKT_SIZE * 2 + 20);
     in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
     while (1) {
         int bytes = read_tun(tun_fd, buf, MAX_PKT_SIZE);
@@ -67,7 +67,7 @@ void *tun_to_ssl(SSL *ssl) {
 }
 
 void *ssl_to_tun(SSL *ssl) {
-    char *buf = (char*)malloc(MAX_PKT_SIZE + 10);
+    char *buf = (char*)malloc(MAX_PKT_SIZE * 2 + 20);
     while (1) {
         int bytes = SSL_receive_packet(ssl, buf, sizeof(buf), 1);
         if (bytes != KEEP_ALIVE_CODE && bytes > 0) {
@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
 
     clock_gettime(CLOCK_MONOTONIC, &last_send);
 
-    char traffic_confuse_str[100];
+    char traffic_confuse_str[MAX_PKT_SIZE * 2 + 20];
     int bytes = SSL_receive_packet(ssl, traffic_confuse_str, sizeof(traffic_confuse_str), 1);
     if (bytes <= 0) {
         application_log(stderr, "Connection rejected by server.\n");
@@ -246,12 +246,12 @@ int main(int argc, char **argv) {
 
     application_log(stdout, "Setting traffic confuse: %d\n", TRAFFIC_CONFUSE);
 
-    char buf[1000];
+    char buf[MAX_PKT_SIZE * 2 + 20];
     // Request the expected host id from server
     sprintf(buf, REQUEST_ADDR_HEADER "%d", EXPECTED_HOST_ID);
     SSL_send_packet(ssl, buf, strlen(buf), 1, 0);
 
-    bytes = SSL_receive_packet(ssl, buf, sizeof(buf) - 10, 1);
+    bytes = SSL_receive_packet(ssl, buf, sizeof(buf), 1);
     if (bytes > 0) {
         if (bytes <= strlen(RESPONSE_ADDR_HEADER) || strncmp(buf, RESPONSE_ADDR_HEADER, strlen(RESPONSE_ADDR_HEADER)) != 0) {
             application_log(stderr, "Invalid response message from server, close connection.\n");

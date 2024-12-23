@@ -115,7 +115,7 @@ int get_ip(long desired) {
 
 void *listen_and_deliver_packets(int *hostid) {
     int host_id = *hostid;
-    char *buf = (char *)malloc(MAX_PKT_SIZE * 2 + 10);
+    char *buf = (char *)malloc(MAX_PKT_SIZE * 2 + 20);
     while (1) {
         int bytes = SSL_receive_packet(ssl_ctxs[host_id], buf, sizeof(buf), 0);
         in_addr_t host_addr = subnet_addr + htonl(host_id);
@@ -226,7 +226,7 @@ void *clean_timeout_conns() {
 }
 
 void *tun_to_ssl(void) {
-    char *buf = (char *)malloc(MAX_PKT_SIZE + 10);
+    char *buf = (char *)malloc(MAX_PKT_SIZE * 2 + 20);
     while (1) {
         int bytes = read_tun(tun_fd, buf, sizeof(buf));
 
@@ -472,8 +472,8 @@ int main(int argc, char **argv) {
             sprintf(traffic_confuse_str, TRAFFIC_CONFUSE_HEADER "%d", TRAFFIC_CONFUSE);
             SSL_send_packet(ssl, traffic_confuse_str, strlen(traffic_confuse_str), 1, 0);
             // Assign IP for client
-            char buf[1000];
-            int bytes = SSL_receive_packet(ssl, buf, sizeof(buf) - 10, 1);
+            char buf[MAX_PKT_SIZE * 2 + 20];
+            int bytes = SSL_receive_packet(ssl, buf, sizeof(buf), 1);
             if (bytes <= 0) {
                 application_log(stderr, "Connection with client crashed.\n");
                 SSL_shutdown(ssl);
