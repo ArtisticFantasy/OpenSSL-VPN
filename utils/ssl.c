@@ -123,6 +123,7 @@ int SSL_receive_packet(SSL *ssl, char *buf, int buf_len, unsigned char decode) {
         if (x < 0) {
             return x;
         }
+        tot += x;
     }
     while(tot < sizeof(struct vpn_hdr));
     struct vpn_hdr *vhdr = (struct vpn_hdr*)hdr_buf;
@@ -135,6 +136,7 @@ int SSL_receive_packet(SSL *ssl, char *buf, int buf_len, unsigned char decode) {
         if (x < 0) {
             return x;
         }
+        tot += x;
     }
     while(tot < len);
     if (!decode) {
@@ -161,5 +163,8 @@ int SSL_receive_packet(SSL *ssl, char *buf, int buf_len, unsigned char decode) {
     default:
         ret = 0;
     }
+
+    free(hdr_buf);
+    free(data_buf);
     return ret;
 }
