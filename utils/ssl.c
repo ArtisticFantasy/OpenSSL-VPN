@@ -7,7 +7,7 @@
 
 extern int host_type;
 
-
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 void init_openssl(void) {
     SSL_load_error_strings();
@@ -65,7 +65,7 @@ void cleanup_openssl(void) {
 }
 
 int SSL_send_packet(SSL *ssl, char *buf, int bytes, unsigned char encode, int confuse_len) {
-    confuse_len = min(confuse_len, MAX_PKT_SIZE / 2);
+    confuse_len = MIN(confuse_len, MAX_PKT_SIZE / 2);
     if (!encode) {
         return SSL_write(ssl, buf, bytes);
     }
