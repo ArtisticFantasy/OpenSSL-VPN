@@ -56,7 +56,7 @@ PORT = <SERVER_PORT_NUMBER>
 EXPECTED_HOST_ID = <EXPECTED_HOST_ID>
 ```
 
-- For `vpn_server`, `PORT` represents the listening port number (between 10000 and 65535, default value is 54433), and `EXPECTED_HOST_ID` represents its host ID within the VPN subnet (default value is 1).
+- For `vpn_server`, `PORT` represents the listening port number (between 10000 and 65535, default value is 54433), `EXPECTED_HOST_ID` represents its host ID within the VPN subnet (default value is 1), and `TRAFFIC_CONFUSE` represents whether confuse the traffic in the VPN, in order to prevent traffic fingerprint (default value is 0).
 - For `vpn_client`, `SERVER_IP` represents the actual address of `vpn_server` (must be specified), `PORT` represents the port on the host which the `vpn_server` is listening on (must match the `vpn_server` configuration, default value is 54433), and `EXPECTED_HOST_ID` represents the desired host ID to be assigned (if not specified, the `vpn_server` will decide the host ID). The `vpn_server` will try to fulfill the `vpn_client`'s host ID request unless the corresponding host ID has already been assigned.
 
 You can refer to `config/config.sample` for a configuration file example. If the configuration file location is not explicitly specified through parameters when starting `vpn_server` and `vpn_client`, the default configuration file `config/config` in the project folder will be used (needs to be created manually).

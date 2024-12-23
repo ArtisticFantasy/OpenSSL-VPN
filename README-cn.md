@@ -56,7 +56,7 @@ PORT = <SERVER_PORT_NUMBER>
 EXPECTED_HOST_ID = <EXPECTED_HOST_ID>
 ```
 
-- 对于vpn_server，```PORT```表示监听端口号(10000到65536之间，默认值54433)，```EXPECTED_HOST_ID```表示其在VPN子网内的主机号(默认值1)
+- 对于vpn_server，```PORT```表示监听端口号(10000到65536之间，默认值54433)，```EXPECTED_HOST_ID```表示其在VPN子网内的主机号(默认值1)，```TRAFFIC_CONFUSE```表示是否对 VPN 中的流量进行混淆，以防止流量指纹识别(默认值0)。
 - 对于vpn_client，```SERVER_IP```表示连接到vpn_server的实际地址（必须指定），```PORT```表示连接到vpn_server所在主机对应端口(需要与vpn_server的配置相同，默认值54433)，```EXPECTED_HOST_ID```表示其期望被分配的主机号（不指定时由vpn_server决定分配主机号），vpn_server会尽量满足vpn_client的主机号请求，除非对应主机号已被分配
 
 配置文件示例可参考```config/config.sample```，如果在启动vpn_server和vpn_client时不通过参数显式指定配置文件位置，则会默认使用项目文件夹下的```config/config```作为配置文件(需要手动创建)
