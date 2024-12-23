@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
     clock_gettime(CLOCK_MONOTONIC, &last_send);
 
     char traffic_confuse_str[100];
-    int bytes = SSL_receive_packet(ssl, traffic_confuse_str, strlen(traffic_confuse_str), 1);
+    int bytes = SSL_receive_packet(ssl, traffic_confuse_str, sizeof(traffic_confuse_str), 1);
     if (bytes <= 0) {
         application_log(stderr, "Connection rejected by server.\n");
         SSL_shutdown(ssl);
