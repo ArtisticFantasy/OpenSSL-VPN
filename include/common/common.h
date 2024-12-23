@@ -17,6 +17,10 @@ enum {
     SERVER
 };
 
+#define MAX_PKT_SIZE 65535
+
+#define KEEP_ALIVE_CODE 7654321
+
 void application_log(FILE *restrict stream, const char *restrict format, ...);
 
 #endif

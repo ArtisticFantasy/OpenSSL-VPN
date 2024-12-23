@@ -272,3 +272,19 @@ int mac_write_tun(int tun_fd, char *buf, int len) {
     return write(tun_fd, tmp, len + 4);
 }
 #endif
+
+int read_tun(int tun_fd, char *buf, int len) {
+#ifdef __linux__
+    return read(tun_fd, buf, len);
+#elif __APPLE__
+    return mac_read_tun(tun_fd, buf, len);
+#endif
+}
+
+int write_tun(int tun_fd, char *buf, int len) {
+#ifdef __linux__
+    return write(tun_fd, buf, len);
+#elif __APPLE__
+    return mac_write_tun(tun_fd, buf, len);
+#endif
+}

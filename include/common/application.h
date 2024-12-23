@@ -8,8 +8,13 @@
 
 #define MAX_HOSTS 1 << 16
 
+#define CONFUSE_MAX_INTERVAL 1.0
+#define CONFUSE_MIN_INTERVAL 0.5
+#define ACTIVE_INTERVAL 1
+
 #define REQUEST_ADDR_HEADER "Expected host id: "
 #define RESPONSE_ADDR_HEADER "Your ip address is: "
+#define TRAFFIC_CONFUSE_HEADER "TRAFFIC_CONFUSE: "
 
 #define REGISTER_CLEAN_UP \
 void clean_up_all(void) { \

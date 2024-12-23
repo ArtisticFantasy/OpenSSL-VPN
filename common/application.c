@@ -4,6 +4,7 @@
 uint16_t PORT = 0;
 uint16_t EXPECTED_HOST_ID = 0;
 in_addr_t SERVER_IP = INADDR_NONE;
+unsigned char TRAFFIC_CONFUSE = -1;
 extern int host_type;
 
 char *trim(char *str) {
@@ -141,6 +142,35 @@ void parse_config_file(const char *file_path, int max_hosts) {
                 application_log(stdout, "Setting server ip: %s\n", value);
             }
         }
+        // Option TRAFFIC_CONFUSE
+        else if (!strcmp(key, "TRAFFIC_CONFUSE")) {
+            if (TRAFFIC_CONFUSE != -1) {
+                application_log(stderr, "Multiple TRAFFIC_CONFUSE specified.\n");
+                fclose(file);
+                exit(EXIT_FAILURE);
+            }
+            if (!strlen(value)) {
+                application_log(stderr, "Invalid TRAFFIC_CONFUSE value.\n");
+                fclose(file);
+                exit(EXIT_FAILURE);
+            }
+            else {
+                long tmp = parse_value(value);
+
+                if (tmp < 0 || tmp > 1) {
+                    application_log(stderr, "Invalid TRAFFIC_CONFUSE value.\n");
+                    fclose(file);
+                    exit(EXIT_FAILURE);
+                }
+                TRAFFIC_CONFUSE = (unsigned char)tmp;
+                if (host_type == CLIENT) {
+                    application_log(stdout, "TRAFFIC_CONFUSE is useless for client, skip.\n");
+                }
+                else {
+                    application_log(stdout, "Setting traffic confuse: %d\n", TRAFFIC_CONFUSE);
+                }
+            }
+        }
         else {
             application_log(stderr, "Unknown option: %s\n", key);
             fclose(file);
@@ -172,6 +202,15 @@ void parse_config_file(const char *file_path, int max_hosts) {
         application_log(stderr, "Did not find SERVER_IP in config file!\n");
         fclose(file);
         exit(EXIT_FAILURE);
+    }
+
+    if (TRAFFIC_CONFUSE == -1 && host_type == SERVER) {
+        TRAFFIC_CONFUSE = 0;
+        application_log(stdout, "Did not find TRAFFIC_CONFUSE in config file, using default value: %d\n", TRAFFIC_CONFUSE);
+    }
+
+    if (host_type == CLIENT) {
+        TRAFFIC_CONFUSE = 0;
     }
 
     fclose(file);

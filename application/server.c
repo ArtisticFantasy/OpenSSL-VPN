@@ -10,6 +10,7 @@
 
 extern uint16_t PORT;
 extern uint16_t EXPECTED_HOST_ID;
+extern unsigned char TRAFFIC_CONFUSE;
 extern int host_type;
 int tun_fd = -1, sk_fd = -1;
 char *vpn_tun_name;
@@ -27,7 +28,10 @@ uint16_t real_ports[MAX_HOSTS] = {0};
 int clients[MAX_HOSTS] = {0};
 SSL *ssl_ctxs[MAX_HOSTS] = {0};
 pthread_t threads[MAX_HOSTS] = {0};
+pthread_t confuse_threads[MAX_HOSTS] = {0};
 struct timespec last_active[MAX_HOSTS] = {0};
+struct timespec last_send[MAX_HOSTS] = {0};
+int pkt_mean[MAX_HOSTS] = {0};
 
 REGISTER_CLEAN_UP
 
@@ -49,6 +53,7 @@ void reset_conn(int host_id) {
     ssl_ctxs[host_id] = 0;
     clients[host_id] = 0;
     threads[host_id] = 0;
+    confuse_threads[host_id] = 0;
 }
 
 int get_ip(long desired) {
@@ -62,13 +67,17 @@ int get_ip(long desired) {
         }
         else if (now.tv_sec - last_active[desired].tv_sec >= CLIENT_TIMEOUT) {
             pthread_cancel(threads[desired]);
+            pthread_cancel(confuse_threads[desired]);
             pthread_join(threads[desired], NULL);
+            pthread_join(confuse_threads[desired], NULL);
             reset_conn(desired);
             return desired;
         }
         else {
             if (pthread_kill(threads[desired], 0) != 0) {
+                pthread_cancel(confuse_threads[desired]);
                 pthread_join(threads[desired], NULL);
+                pthread_join(confuse_threads[desired], NULL);
                 reset_conn(desired);
                 return desired;
             }
@@ -85,13 +94,17 @@ int get_ip(long desired) {
         }
         else if (now.tv_sec - last_active[i].tv_sec >= CLIENT_TIMEOUT) {
             pthread_cancel(threads[i]);
+            pthread_cancel(confuse_threads[i]);
             pthread_join(threads[i], NULL);
+            pthread_join(confuse_threads[i], NULL);
             reset_conn(i);
             return i;
         }
         else {
             if (pthread_kill(threads[i], 0) != 0) {
+                pthread_cancel(confuse_threads[i]);
                 pthread_join(threads[i], NULL);
+                pthread_join(confuse_threads[i], NULL);
                 reset_conn(i);
                 return i;
             }
@@ -102,25 +115,27 @@ int get_ip(long desired) {
 
 void *listen_and_deliver_packets(int *hostid) {
     int host_id = *hostid;
-    char buf[70000];
+    char *buf = (char *)malloc(MAX_PKT_SIZE * 2 + 10);
     while (1) {
-        int bytes = SSL_receive_packet(ssl_ctxs[host_id], buf, sizeof(buf));
+        int bytes = SSL_receive_packet(ssl_ctxs[host_id], buf, sizeof(buf), 0);
+        in_addr_t host_addr = subnet_addr + htonl(host_id);
 
-        if (bytes <= 0) {
+        if (bytes == KEEP_ALIVE_CODE){
+            clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
+            application_log(stdout, "Received keep-alive message from %s:%d ", 
+                inet_ntoa(*(struct in_addr *)&real_iptable[host_id]), real_ports[host_id]);
+            printf("(%s/%d)\n",
+                inet_ntoa(*(struct in_addr *)&host_addr), prefix_len);
+            continue;
+        }
+        else if (bytes < 0) {
+            pthread_cancel(confuse_threads[host_id]);
+            pthread_join(confuse_threads[host_id], NULL);
             reset_conn(host_id);
+            free(buf);
             return NULL;
         }
-
-        //keep alive
-        in_addr_t host_addr = subnet_addr + htonl(host_id);
-        if (bytes == strlen("hello")) {
-            if (strncmp(buf, "hello", strlen("hello")) == 0) {
-                clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
-                application_log(stdout, "Received keep-alive message from %s:%d ", 
-                    inet_ntoa(*(struct in_addr *)&real_iptable[host_id]), real_ports[host_id]);
-                printf("(%s/%d)\n",
-                    inet_ntoa(*(struct in_addr *)&host_addr), prefix_len);
-            }
+        else if (bytes == 0) {
             continue;
         }
 
@@ -128,7 +143,7 @@ void *listen_and_deliver_packets(int *hostid) {
         if (bytes < sizeof(struct iphdr)) {
             continue;
         }
-        struct iphdr *iph = (struct iphdr *)buf;
+        struct iphdr *iph = (struct iphdr *)(buf + sizeof(struct vpn_hdr));
         if ((iph->saddr != host_addr) || (iph->daddr & get_netmask(prefix_len)) != subnet_addr) {
             continue;
         }
@@ -136,7 +151,7 @@ void *listen_and_deliver_packets(int *hostid) {
         clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
 
         if (iph->daddr == ip_addr) {
-            write(tun_fd, buf, bytes);
+            write_tun(tun_fd, buf + sizeof(struct vpn_hdr), bytes);
             continue;
         }
 
@@ -149,7 +164,7 @@ void *listen_and_deliver_packets(int *hostid) {
         if (bytes < sizeof(struct ip)) {
             continue;
         }
-        struct ip *iph = (struct ip *)buf;
+        struct ip *iph = (struct ip *)(buf + sizeof(struct vpn_hdr));
         if ((iph->ip_src.s_addr != host_addr) || (iph->ip_dst.s_addr & get_netmask(prefix_len)) != subnet_addr) {
             continue;
         }
@@ -157,7 +172,7 @@ void *listen_and_deliver_packets(int *hostid) {
         clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
 
         if (iph->ip_dst.s_addr == ip_addr) {
-            mac_write_tun(tun_fd, buf, bytes);
+            write_tun(tun_fd, buf + sizeof(struct vpn_hdr), bytes);
             continue;
         }
 
@@ -173,15 +188,20 @@ void *listen_and_deliver_packets(int *hostid) {
         }
 
         if (pthread_kill(threads[target_host_id], 0) != 0) {
+            pthread_cancel(confuse_threads[target_host_id]);
             pthread_join(threads[target_host_id], NULL);
+            pthread_join(confuse_threads[target_host_id], NULL);
             reset_conn(target_host_id);
+            free(buf);
             continue;
         }
 
         clock_gettime(CLOCK_MONOTONIC, &last_active[target_host_id]);
 
-        SSL_send_packet(ssl_ctxs[target_host_id], buf, bytes);
+        struct vpn_hdr *vhdr = (struct vpn_hdr *)buf;
+        SSL_send_packet(ssl_ctxs[target_host_id], buf, sizeof(struct vpn_hdr) + vhdr->data_length + vhdr->padding_length, 0, 0);
     }
+    free(buf);
 }
 
 void *clean_timeout_conns() {
@@ -196,7 +216,9 @@ void *clean_timeout_conns() {
 
             if (used_ips[i] && now.tv_sec - last_active[i].tv_sec >= CLIENT_TIMEOUT) {
                 pthread_cancel(threads[i]);
+                pthread_cancel(confuse_threads[i]);
                 pthread_join(threads[i], NULL);
+                pthread_join(confuse_threads[i], NULL);
                 reset_conn(i);
             }
         }
@@ -204,15 +226,12 @@ void *clean_timeout_conns() {
 }
 
 void *tun_to_ssl(void) {
-    char buf[70000];
+    char *buf = (char *)malloc(MAX_PKT_SIZE + 10);
     while (1) {
-#ifdef __linux__
-        int bytes = read(tun_fd, buf, sizeof(buf));
-#elif __APPLE__
-        int bytes = mac_read_tun(tun_fd, buf, sizeof(buf));
-#endif
+        int bytes = read_tun(tun_fd, buf, sizeof(buf));
 
         if (bytes <= 0) {
+            free(buf);
             return NULL;
         }
 
@@ -261,14 +280,35 @@ void *tun_to_ssl(void) {
         }
 
         if (pthread_kill(threads[target_host_id], 0) != 0) {
+            pthread_cancel(confuse_threads[target_host_id]);
             pthread_join(threads[target_host_id], NULL);
+            pthread_join(confuse_threads[target_host_id], NULL);
             reset_conn(target_host_id);
+            free(buf);
             continue;
         }
 
         clock_gettime(CLOCK_MONOTONIC, &last_active[target_host_id]);
 
-        SSL_send_packet(ssl_ctxs[target_host_id], buf, bytes);
+        int len = SSL_send_packet(ssl_ctxs[target_host_id], buf, bytes, 1, TRAFFIC_CONFUSE ? random() % (bytes / 2 + 1) : 0);
+        pkt_mean[target_host_id] = 0.3 * len + 0.7 * pkt_mean[target_host_id];
+        clock_gettime(CLOCK_MONOTONIC, &last_send[target_host_id]);
+    }
+    free(buf);
+}
+
+void *confuse(int *hostid) {
+    struct timespec now;
+    while (1) {
+        double interval = (CONFUSE_MAX_INTERVAL - CONFUSE_MIN_INTERVAL) * (random() / (double)RAND_MAX) + CONFUSE_MIN_INTERVAL;
+        sleep(interval);
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        if (!TRAFFIC_CONFUSE) {
+            continue;
+        }
+        if (now.tv_sec - last_send[*hostid].tv_sec <= ACTIVE_INTERVAL && pkt_mean[*hostid] > 0) {
+            SSL_send_packet(ssl_ctxs[*hostid], "confuse", strlen("confuse"), 1, pkt_mean[*hostid] + random() % (pkt_mean[*hostid] / 10 + 1) - pkt_mean[*hostid] / 20);
+        }
     }
 }
 
@@ -428,11 +468,14 @@ int main(int argc, char **argv) {
         }
         else {
             application_log(stdout, "Received connection from %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+            char traffic_confuse_str[100];
+            sprintf(traffic_confuse_str, TRAFFIC_CONFUSE_HEADER "%d", TRAFFIC_CONFUSE);
+            SSL_send_packet(ssl, traffic_confuse_str, strlen(traffic_confuse_str), 1, 0);
             // Assign IP for client
             char buf[1000];
-            int bytes = SSL_receive_packet(ssl, buf, sizeof(buf) - 10);
+            int bytes = SSL_receive_packet(ssl, buf, sizeof(buf) - 10, 1);
             if (bytes <= 0) {
-                application_log(stderr, "Maybe the client cannot verify your identity, connection closed.\n");
+                application_log(stderr, "Connection with client crashed.\n");
                 SSL_shutdown(ssl);
                 SSL_free(ssl);
                 close(client);
@@ -464,17 +507,20 @@ int main(int argc, char **argv) {
                 char actual_msg[2000];
                 sprintf(actual_msg, RESPONSE_ADDR_HEADER "%s", ip_str);
                 clock_gettime(CLOCK_MONOTONIC, &last_active[host_id]);
+                clock_gettime(CLOCK_MONOTONIC, &last_send[host_id]);
                 used_ips[host_id] = 1;
                 real_iptable[host_id] = addr.sin_addr.s_addr;
                 real_ports[host_id] = ntohs(addr.sin_port);
                 ssl_ctxs[host_id] = ssl;
                 clients[host_id] = client;
+                pkt_mean[host_id] = 10;
 
-                SSL_send_packet(ssl, actual_msg, strlen(actual_msg));
+                SSL_send_packet(ssl, actual_msg, strlen(actual_msg), 1, 0);
 
                 application_log(stdout, "Assigned %s:%d as %s\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port), ip_str);
 
                 pthread_create(&threads[host_id], NULL, (void*)listen_and_deliver_packets, &host_id);
+                pthread_create(&confuse_threads[host_id], NULL, (void*)confuse, &host_id);
             }
             else {
                 SSL_shutdown(ssl);

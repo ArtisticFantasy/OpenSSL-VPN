@@ -10,6 +10,7 @@
 extern uint16_t PORT;
 extern uint16_t EXPECTED_HOST_ID;
 extern in_addr_t SERVER_IP;
+extern unsigned char TRAFFIC_CONFUSE;
 extern int host_type;
 int tun_fd = -1, sk_fd = -1;
 char *vpn_tun_name;
@@ -17,20 +18,19 @@ int route_added = 0;
 in_addr_t ip_addr;
 char subnet_str[100];
 int prefix_len;
+int pkt_mean = 10;
+struct timespec last_send;
 
 REGISTER_CLEAN_UP
 
 void *tun_to_ssl(SSL *ssl) {
-    char buf[70000];
+    char *buf = (char*)malloc(MAX_PKT_SIZE + 10);
     in_addr_t subnet_addr = ip_addr & get_netmask(prefix_len);
     while (1) {
-#ifdef __linux__
-        int bytes = read(tun_fd, buf, sizeof(buf));
-#elif __APPLE__
-        int bytes = mac_read_tun(tun_fd, buf, sizeof(buf));
-#endif
+        int bytes = read_tun(tun_fd, buf, MAX_PKT_SIZE);
 
         if (bytes <= 0) {
+            free(buf);
             return NULL;
         }
 
@@ -59,31 +59,47 @@ void *tun_to_ssl(SSL *ssl) {
             continue;
         }
 #endif
-        SSL_send_packet(ssl, buf, bytes);
+        int len = SSL_send_packet(ssl, buf, bytes, 1, TRAFFIC_CONFUSE ? random() % (bytes / 2 + 1) : 0);
+        pkt_mean = 0.3 * len + 0.7 * pkt_mean;
+        clock_gettime(CLOCK_MONOTONIC, &last_send);
     }
+    free(buf);
 }
 
 void *ssl_to_tun(SSL *ssl) {
-    char buf[70000];
+    char *buf = (char*)malloc(MAX_PKT_SIZE + 10);
     while (1) {
-        int bytes = SSL_receive_packet(ssl, buf, sizeof(buf));
-        if (bytes > 0) {
-#ifdef __linux__
-            write(tun_fd, buf, bytes);
-#elif __APPLE__
-            mac_write_tun(tun_fd, buf, bytes);
-#endif
+        int bytes = SSL_receive_packet(ssl, buf, sizeof(buf), 1);
+        if (bytes != KEEP_ALIVE_CODE && bytes > 0) {
+            write_tun(tun_fd, buf, bytes);
         }
-        else {
+        else if (bytes < 0) {
+            free(buf);
             return NULL;
         }
     }
+    free(buf);
 }
 
 void *keep_alive(SSL *ssl) {
     while (1) {
         sleep(CLIENT_KEEP_ALIVE_INTERVAL);
-        SSL_send_packet(ssl, "hello", strlen("hello"));
+        SSL_send_packet(ssl, "hello", strlen("hello"), 1, 0);
+    }
+}
+
+void *confuse(SSL *ssl) {
+    struct timespec now;
+    while (1) {
+        double interval = (CONFUSE_MAX_INTERVAL - CONFUSE_MIN_INTERVAL) * (random() / (double)RAND_MAX) + CONFUSE_MIN_INTERVAL;
+        sleep(interval);
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        if (!TRAFFIC_CONFUSE) {
+            continue;
+        }
+        if (now.tv_sec - last_send.tv_sec <= ACTIVE_INTERVAL && pkt_mean > 0) {
+            SSL_send_packet(ssl, "confuse", strlen("confuse"), 1, pkt_mean + random() % (pkt_mean / 10 + 1) - pkt_mean / 20);
+        }
     }
 }
 
@@ -193,14 +209,50 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    clock_gettime(CLOCK_MONOTONIC, &last_send);
+
+    char traffic_confuse_str[100];
+    int bytes = SSL_receive_packet(ssl, traffic_confuse_str, strlen(traffic_confuse_str), 1);
+    if (bytes <= 0) {
+        application_log(stderr, "Connection rejected by server.\n");
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        close(sock);
+        SSL_CTX_free(ctx);
+        exit(EXIT_FAILURE);
+    }
+
+    application_log(stdout, "Connected with %s encryption.\n", SSL_get_cipher(ssl));
+
+    if (bytes <= strlen(TRAFFIC_CONFUSE_HEADER) || strncmp(traffic_confuse_str, TRAFFIC_CONFUSE_HEADER, strlen(TRAFFIC_CONFUSE_HEADER)) != 0) {
+        application_log(stderr, "Invalid response message from server, close connection.\n");
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        close(sock);
+        SSL_CTX_free(ctx);
+        exit(EXIT_FAILURE);
+    }
+    
+    TRAFFIC_CONFUSE = atoi(traffic_confuse_str + strlen(TRAFFIC_CONFUSE_HEADER));
+
+    if (TRAFFIC_CONFUSE < 0 || TRAFFIC_CONFUSE > 1) {
+        application_log(stderr, "Invalid TRAFFIC_CONFUSE value received from server, close connection.\n");
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        close(sock);
+        SSL_CTX_free(ctx);
+        exit(EXIT_FAILURE);
+    }
+
+    application_log(stdout, "Setting traffic confuse: %d\n", TRAFFIC_CONFUSE);
+
     char buf[1000];
     // Request the expected host id from server
     sprintf(buf, REQUEST_ADDR_HEADER "%d", EXPECTED_HOST_ID);
-    SSL_send_packet(ssl, buf, strlen(buf));
+    SSL_send_packet(ssl, buf, strlen(buf), 1, 0);
 
-    int bytes = SSL_receive_packet(ssl, buf, sizeof(buf) - 10);
+    bytes = SSL_receive_packet(ssl, buf, sizeof(buf) - 10, 1);
     if (bytes > 0) {
-        application_log(stdout, "Connected with %s encryption.\n", SSL_get_cipher(ssl));
         if (bytes <= strlen(RESPONSE_ADDR_HEADER) || strncmp(buf, RESPONSE_ADDR_HEADER, strlen(RESPONSE_ADDR_HEADER)) != 0) {
             application_log(stderr, "Invalid response message from server, close connection.\n");
             SSL_shutdown(ssl);
@@ -253,16 +305,19 @@ int main(int argc, char **argv) {
     }
 
     // There will be two threads, one for reading from tun and writing to ssl, the other for reading from ssl and writing to tun
-    pthread_t tun_to_ssl_thread, ssl_to_tun_thread, keep_alive_thread;
+    pthread_t tun_to_ssl_thread, ssl_to_tun_thread, keep_alive_thread, confuse_thread;
     pthread_create(&tun_to_ssl_thread, NULL, (void*)tun_to_ssl, ssl);
     pthread_create(&ssl_to_tun_thread, NULL, (void*)ssl_to_tun, ssl);
     pthread_create(&keep_alive_thread, NULL, (void*)keep_alive, ssl);
+    pthread_create(&confuse_thread, NULL, (void*)confuse, ssl);
+    
     pthread_join(ssl_to_tun_thread, NULL);
     pthread_cancel(tun_to_ssl_thread);
     pthread_cancel(keep_alive_thread);
+    pthread_cancel(confuse_thread);
     pthread_join(tun_to_ssl_thread, NULL);
     pthread_join(keep_alive_thread, NULL);
-    
+    pthread_join(confuse_thread, NULL);
 
     application_log(stderr, "Connection closed by server.\n");
 
